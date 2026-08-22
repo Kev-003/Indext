@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\ChatController;
+use App\Http\Controllers\Api\StorageController;
 use App\Http\Controllers\BrandController;
 use Illuminate\Support\Facades\Route;
 
@@ -22,6 +23,18 @@ Route::middleware(['web', 'auth:web'])->get('/debug-auth', function (\Illuminate
     ]);
 });
 
+Route::middleware(['web', 'auth:web', 'ai.guardrail'])
+    ->prefix('brands/{brand}')
+    ->group(function () {
+        Route::post('/chat/message', [ChatController::class, 'message'])->name('api.chat.message');
+    });
+
+Route::middleware(['web', 'auth:web'])
+    ->prefix('storage')
+    ->group(function () {
+        Route::get('/presigned-url', [StorageController::class, 'presignedUrl'])->name('api.storage.presigned-url');
+        Route::post('/confirm-upload', [StorageController::class, 'confirmUpload'])->name('api.storage.confirm-upload');
+    });
 
 
 

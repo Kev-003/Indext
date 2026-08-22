@@ -3,51 +3,51 @@
 namespace App\Http\Controllers;
 
 use App\Models\Brand;
-use App\Services\BrandChatStore;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class WorkspaceController extends Controller
 {
-    /**
-     * Display the generative workspace.
-     */
-    public function index(Request $request, BrandChatStore $chatStore): Response
+    public function index(Request $request): Response
     {
         $brandId = $request->query('brand');
         $brand = null;
         $conversation = null;
-        $messages = [];
-        $brands = [];
+        $messages = collect();
+        $brands = collect();
 
         $teamSlug = $request->route('current_team');
         $team = \App\Models\Team::where('slug', $teamSlug)->firstOrFail();
 
         if ($brandId) {
             $brand = Brand::where('id', $brandId)
-                ->where('team_id', $team->id)  // Enforce team ownership
+                ->where('team_id', $team->id)
                 ->first();
 
             if ($brand) {
-                $conversation = $brand->conversations()->where('status', 'active')->first();
+                $conversation = $brand->conversations()->where('status', 'active')->latest('updated_at')->first();
 
                 if ($conversation && $conversation->agent_conversation_id) {
-                    $messages = $chatStore->getLatestConversationMessages(
-                        $conversation->agent_conversation_id,
-                        50
-                    )->map(fn ($msg) => [
-                        'id' => $msg['id'],
-                        'role' => $msg['role'],
-                        'content' => $msg['content'],
-                        'tool_calls' => $msg['tool_calls'] ?? [],
-                        'created_at' => $msg['created_at'],
-                    ])->toArray();
+                    $records = \Illuminate\Support\Facades\DB::connection()->table('agent_conversation_messages')
+                        ->where('conversation_id', $conversation->agent_conversation_id)
+                        ->orderByDesc('created_at')
+                        ->limit(50)
+                        ->get()
+                        ->reverse()
+                        ->values();
+
+                    $messages = $records->map(fn ($msg) => [
+                        'id' => $msg->id,
+                        'role' => $msg->role,
+                        'content' => $msg->content,
+                        'tool_calls' => json_decode($msg->tool_calls, true) ?: [],
+                        'created_at' => $msg->created_at,
+                    ]);
                 }
             }
         }
 
-        // Always load all team brands so the sidebar / brand list stays populated
         $brands = Brand::where('team_id', $team->id)
             ->orderBy('sort_order')
             ->orderByDesc('updated_at')
@@ -61,6 +61,21 @@ class WorkspaceController extends Controller
                 'updated_at' => $b->updated_at->diffForHumans(),
             ]);
 
+        $autoTrigger = false;
+
+        if ($conversation && $messages->isNotEmpty()) {
+            $lastMessage = $messages->last();
+            $hasAssistantReply = $messages->contains(function ($msg) {
+    if ($msg['role'] !== 'assistant') {
+        return false;
+    }
+
+    $hasContent = trim($msg['content'] ?? '') !== '';
+    $hasToolCalls = !empty($msg['tool_calls']);
+
+    return $hasContent || $hasToolCalls;
+});
+        }
 
         return Inertia::render('workspace/index', [
             'brand' => $brand ? [
@@ -77,6 +92,7 @@ class WorkspaceController extends Controller
             ] : null,
             'messages' => $messages,
             'brands' => $brands,
+            'autoTrigger' => $autoTrigger,
             'availableTools' => [
                 ['name' => 'MindMapCanvas', 'description' => 'Surfaces the mind-map canvas for ideation.'],
                 ['name' => 'PalettePicker', 'description' => 'Surfaces the color palette generator.'],
@@ -87,4 +103,3 @@ class WorkspaceController extends Controller
         ]);
     }
 }
-

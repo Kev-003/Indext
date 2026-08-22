@@ -55,7 +55,13 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
             created_at: new Date().toISOString(),
         };
 
-        setMessages((prev) => [...prev, userMessage]);
+        setMessages((prev) => {
+            const last = prev[prev.length - 1];
+            if (last && last.role === 'user' && last.content === prompt) {
+                return prev;
+            }
+            return [...prev, userMessage];
+        });
 
         const assistantMessageId = `assistant_${Date.now()}`;
         const assistantMessage: Message = {
@@ -74,6 +80,12 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
                 url.searchParams.set('conversation_id', String(conversationId));
             }
 
+            console.log('[useChatStream] sending', {
+                brandId,
+                conversationId,
+                promptPreview: prompt.slice(0, 50),
+            });
+
             const response = await fetch(url.toString(), {
                 method: 'POST',
                 headers: {
@@ -81,7 +93,7 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
                     'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
                     Accept: 'text/event-stream',
                 },
-                body: JSON.stringify({ prompt }),
+                body: JSON.stringify({ prompt, conversation_id: conversationId || undefined }),
                 signal: controller.signal,
             });
 
@@ -128,6 +140,16 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
                     try {
                         const parsed = JSON.parse(data);
 
+                        if (parsed.message) {
+                            setError(parsed.message);
+                            setMessages((prev) =>
+                                prev.map((m) =>
+                                    m.id === assistantMessageId ? { ...m, content: `Error: ${parsed.message}` } : m,
+                                ),
+                            );
+                            continue;
+                        }
+
                         if (parsed.content) {
                             accumulatedContent += parsed.content;
                             setMessages((prev) =>
@@ -157,9 +179,10 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
                         }
 
                         if (parsed.conversation_id) {
-                            // Track which conversation is now active so subsequent
-                            // messages are routed to the same conversation.
-                            // Do NOT use this as the message id — that corrupts React keys.
+                            console.log('[useChatStream] received conversation_id', {
+                                conversationId: parsed.conversation_id,
+                                previousActive: activeConversationId,
+                            });
                             setActiveConversationId(parsed.conversation_id);
                         }
                     } catch {

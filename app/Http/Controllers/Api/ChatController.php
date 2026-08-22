@@ -1,29 +1,29 @@
 <?php
-
 namespace App\Http\Controllers\Api;
 
+use App\Ai\Agents\BrandingAgent;
 use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\Conversation;
-use App\Services\BrandChatStore;
-use App\Services\LLM\LLMProvider;
-use App\Services\LLM\SystemPromptBuilder;
-use App\Services\LLM\ToolRegistry;
+use App\Services\LLM\PromptGuardrailService;
+use App\Services\LLM\SemanticIntentFilter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Support\Facades\Log;
+use Laravel\Ai\Streaming\Events\Error;
+use Laravel\Ai\Streaming\Events\StreamEnd;
+use Laravel\Ai\Streaming\Events\TextDelta;
+use Laravel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
+use Symfony\Component\HttpFoundation\Response;
 
 class ChatController extends Controller
 {
     public function __construct(
-        protected LLMProvider $llm,
-        protected ToolRegistry $toolRegistry,
-        protected SystemPromptBuilder $systemPromptBuilder,
-        protected BrandChatStore $chatStore,
+        protected SemanticIntentFilter $semanticFilter,
+        protected PromptGuardrailService $guardrails,
     ) {}
 
-    public function message(Request $request, Brand $brand): StreamedResponse
+    public function message(Request $request, Brand $brand): Response
     {
         $user = $request->user();
 
@@ -35,7 +35,7 @@ class ChatController extends Controller
             abort(403);
         }
 
-        $validator = Validator::make($request->all(), [
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
             'prompt' => ['required', 'string', 'max:5000'],
             'conversation_id' => ['nullable', 'exists:conversations,id'],
         ]);
@@ -45,6 +45,21 @@ class ChatController extends Controller
         $prompt = $request->input('prompt');
         $conversationId = $request->input('conversation_id');
 
+        $guardrailResult = $this->guardrails->validate($prompt);
+        if (!$guardrailResult['valid']) {
+            Log::channel('single')->debug('Chat guardrail rejected prompt', [
+                'brand_id' => $brand->id,
+                'user_id' => $user->id,
+                'reason' => $guardrailResult['reason'],
+            ]);
+
+            return response()->json([
+                'message' => $guardrailResult['reason'],
+            ], 400);
+        }
+
+        $prompt = $guardrailResult['sanitized'];
+
         $conversation = DB::transaction(function () use ($user, $brand, $conversationId, $prompt) {
             if ($conversationId) {
                 $conversation = Conversation::where('id', $conversationId)
@@ -53,20 +68,79 @@ class ChatController extends Controller
                     ->firstOrFail();
 
                 if (!$conversation->agent_conversation_id) {
-                    $agentConversationId = $this->chatStore->storeConversation(
-                        participantType: 'user',
-                        participantId: $user->id,
-                        title: $conversation->title,
-                    );
+                    Log::channel('single')->debug('Chat creating new agent conversation', [
+                        'brand_id' => $brand->id,
+                        'conversation_id' => $conversation->id,
+                        'user_id' => $user->id,
+                    ]);
+
+                    $agentConversationId = \Illuminate\Support\Str::uuid7()->toString();
+
+                    DB::connection()->table('agent_conversations')->insert([
+                        'id' => $agentConversationId,
+                        'participant_type' => 'user',
+                        'participant_id' => $user->id,
+                        'title' => $conversation->title,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+
+                    DB::connection()->table('agent_conversation_messages')->insert([
+                        'id' => \Illuminate\Support\Str::uuid7()->toString(),
+                        'conversation_id' => $agentConversationId,
+                        'participant_type' => 'user',
+                        'participant_id' => $user->id,
+                        'agent' => 'branding',
+                        'role' => 'user',
+                        'content' => $prompt,
+                        'attachments' => '[]',
+                        'tool_calls' => '[]',
+                        'tool_results' => '[]',
+                        'usage' => '[]',
+                        'meta' => '[]',
+                        'approval_state' => null,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
 
                     $conversation->update(['agent_conversation_id' => $agentConversationId]);
+                } else {
+                    Log::channel('single')->debug('Chat reusing existing agent conversation', [
+                        'brand_id' => $brand->id,
+                        'conversation_id' => $conversation->id,
+                        'agent_conversation_id' => $conversation->agent_conversation_id,
+                        'user_id' => $user->id,
+                    ]);
                 }
             } else {
-                $agentConversationId = $this->chatStore->storeConversation(
-                    participantType: 'user',
-                    participantId: $user->id,
-                    title: $this->extractTitle($prompt),
-                );
+                $agentConversationId = \Illuminate\Support\Str::uuid7()->toString();
+
+                DB::connection()->table('agent_conversations')->insert([
+                    'id' => $agentConversationId,
+                    'participant_type' => 'user',
+                    'participant_id' => $user->id,
+                    'title' => $this->extractTitle($prompt),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                DB::connection()->table('agent_conversation_messages')->insert([
+                    'id' => \Illuminate\Support\Str::uuid7()->toString(),
+                    'conversation_id' => $agentConversationId,
+                    'participant_type' => 'user',
+                    'participant_id' => $user->id,
+                    'agent' => 'branding',
+                    'role' => 'user',
+                    'content' => $prompt,
+                    'attachments' => '[]',
+                    'tool_calls' => '[]',
+                    'tool_results' => '[]',
+                    'usage' => '[]',
+                    'meta' => '[]',
+                    'approval_state' => null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
 
                 $conversation = Conversation::create([
                     'team_id' => $team?->id ?? $user->currentTeam?->id,
@@ -78,95 +152,103 @@ class ChatController extends Controller
                 ]);
             }
 
-            $this->chatStore->storeUserMessage(
-                conversationId: $conversation->agent_conversation_id,
-                participantType: 'user',
-                participantId: $user->id,
-                content: $prompt,
-            );
-
             return $conversation;
         });
 
-        $history = $this->chatStore->getLatestConversationMessages(
-            $conversation->agent_conversation_id,
-            50
-        )->map(fn ($m) => ['role' => $m['role'], 'content' => $m['content']])
-        ->toArray();
+        Log::channel('single')->debug('Chat after transaction', [
+            'brand_id' => $brand->id,
+            'conversation_id' => $conversation->id,
+            'agent_conversation_id' => $conversation->agent_conversation_id,
+            'prompt' => $prompt,
+        ]);
 
-        $messages = $this->systemPromptBuilder->build($brand, $history, $user->llm_methodology);
-        $tools = $this->toolRegistry->getToolDefinitions();
+        $agent = BrandingAgent::make($brand);
+
+        if ($conversationId && $conversation->agent_conversation_id) {
+            $agent->continue($conversation->agent_conversation_id, $user);
+        } else {
+            $agent->forUser($user);
+        }
+
+        $messageCountSoFar = count($agent->messages());
+
+        if ($messageCountSoFar < 4) {
+            Log::channel('single')->debug('Chat semantic filter skipped (discovery phase)', [
+                'brand_id' => $brand->id,
+                'conversation_id' => $conversation->id,
+                'message_count' => $messageCountSoFar,
+                'prompt' => $prompt,
+            ]);
+        } elseif (!$this->semanticFilter->isRelevant($prompt, 30)) {
+            Log::channel('single')->debug('Chat semantic filter rejected prompt', [
+                'brand_id' => $brand->id,
+                'conversation_id' => $conversation->id,
+                'message_count' => $messageCountSoFar,
+                'prompt' => $prompt,
+            ]);
+
+            return response()->json([
+                'message' => 'Please keep queries related to brand discovery, design systems, typography, color theory, or visual identity.',
+            ], 400);
+        }
+
+        $prompt = $this->sanitizeForJson($prompt);
+
+        Log::channel('single')->debug('Chat streaming request', [
+            'brand_id' => $brand->id,
+            'conversation_id' => $conversation->id,
+            'provider' => $agent->provider(),
+            'model' => $agent->model(),
+        ]);
+
+        $streamable = $agent->stream($prompt);
 
         return response()->stream(
-            function () use ($brand, $conversation, $messages, $tools, $user) {
+            function () use ($streamable, $conversation) {
                 $fullContent = '';
-                $toolCalls = [];
-                $currentToolCallIndex = null;
 
                 try {
-                    foreach ($this->llm->streamChat($messages, $tools) as $chunk) {
-                        if ($chunk->type === 'text') {
-                            $fullContent .= $chunk->delta['content'] ?? '';
+                    foreach ($streamable as $event) {
+                        if ($event instanceof TextDelta) {
+                            $fullContent .= $event->delta;
 
                             echo "event: text\n";
-                            echo "data: ".json_encode(['content' => $chunk->delta['content'] ?? ''])."\n\n";
-                        } elseif ($chunk->type === 'tool_call') {
-                            $index = $chunk->metadata['index'] ?? 0;
-
-                            if ($currentToolCallIndex !== null && $currentToolCallIndex !== $index) {
-                                $this->sendToolCallEvent($toolCalls[$currentToolCallIndex]);
-                                $currentToolCallIndex = null;
-                            }
-
-                            if (!isset($toolCalls[$index])) {
-                                $toolCalls[$index] = [
-                                    'id' => 'call_'.uniqid(),
-                                    'type' => 'function',
-                                    'function' => [
-                                        'name' => '',
-                                        'arguments' => '',
-                                    ],
-                                ];
-                                $currentToolCallIndex = $index;
-                            }
-
-                            if (isset($chunk->delta['id'])) {
-                                $toolCalls[$index]['id'] = $chunk->delta['id'];
-                            }
-                            if (isset($chunk->delta['type'])) {
-                                $toolCalls[$index]['type'] = $chunk->delta['type'];
-                            }
-                            if (isset($chunk->delta['function']['name'])) {
-                                $toolCalls[$index]['function']['name'] = $chunk->delta['function']['name'];
-                            }
-                            if (isset($chunk->delta['function']['arguments'])) {
-                                $toolCalls[$index]['function']['arguments'] .= $chunk->delta['function']['arguments'];
-                            }
-
-                            $this->sendToolCallEvent($toolCalls[$index]);
+                            echo "data: ".json_encode(['content' => $this->sanitizeForJson($event->delta)], JSON_INVALID_UTF8_SUBSTITUTE)."\n\n";
+                        } elseif ($event instanceof ToolCallEvent) {
+                            echo "event: tool_call\n";
+                            echo "data: ".json_encode([
+                                'id' => $this->sanitizeForJson($event->toolCall->id),
+                                'name' => $this->sanitizeForJson($event->toolCall->name),
+                                'arguments' => $event->toolCall->arguments,
+                            ], JSON_INVALID_UTF8_SUBSTITUTE)."\n\n";
+                        } elseif ($event instanceof Error) {
+                            echo "event: error\n";
+                            echo "data: ".json_encode(['message' => $this->sanitizeForJson((string) $event)], JSON_INVALID_UTF8_SUBSTITUTE)."\n\n";
                         }
 
                         ob_flush();
                         flush();
                     }
 
-                    if ($currentToolCallIndex !== null && isset($toolCalls[$currentToolCallIndex])) {
-                        $this->sendToolCallEvent($toolCalls[$currentToolCallIndex]);
+                    if ($this->guardrails->isOutOfScope($fullContent)) {
+                        echo "event: error\n";
+                        echo "data: ".json_encode(['message' => 'Prompt violated platform rules. Please keep queries related to brand discovery, design systems, typography, color theory, or visual identity.'], JSON_INVALID_UTF8_SUBSTITUTE)."\n\n";
+                    } else {
+                        echo "event: done\n";
+                        echo "data: ".json_encode(['conversation_id' => $conversation->id], JSON_INVALID_UTF8_SUBSTITUTE)."\n\n";
                     }
-
-                    $this->chatStore->storeAssistantMessage(
-                        conversationId: $conversation->agent_conversation_id,
-                        participantType: 'user',
-                        participantId: $user->id,
-                        content: $fullContent ?: '',  // storeAssistantMessage expects string, not null
-                        toolCalls: !empty($toolCalls) ? array_values($toolCalls) : [],
-                    );
-
-                    echo "event: done\n";
-                    echo "data: ".json_encode(['conversation_id' => $conversation->id])."\n\n";
                 } catch (\Throwable $e) {
+                    Log::channel('single')->debug('Chat storing assistant error message', [
+                        'brand_id' => $brand->id ?? null,
+                        'conversation_id' => $conversation->id ?? null,
+                        'agent_conversation_id' => $conversation->agent_conversation_id ?? null,
+                        'error' => $e->getMessage(),
+                        'previous' => $e->getPrevious()?->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+
                     echo "event: error\n";
-                    echo "data: ".json_encode(['message' => $e->getMessage()])."\n\n";
+                    echo "data: ".json_encode(['message' => $this->sanitizeForJson($e->getMessage())], JSON_INVALID_UTF8_SUBSTITUTE)."\n\n";
                 }
 
                 ob_flush();
@@ -181,14 +263,9 @@ class ChatController extends Controller
         );
     }
 
-    protected function sendToolCallEvent(array $toolCall): void
+    private function sanitizeForJson(string $value): string
     {
-        echo "event: tool_call\n";
-        echo "data: ".json_encode([
-            'id' => $toolCall['id'],
-            'name' => $toolCall['function']['name'],
-            'arguments' => json_decode($toolCall['function']['arguments'], true) ?: [],
-        ])."\n\n";
+        return mb_convert_encoding($value, 'UTF-8', 'UTF-8');
     }
 
     protected function extractTitle(string $prompt): ?string
@@ -202,5 +279,3 @@ class ChatController extends Controller
         return substr($prompt, 0, 57).'...';
     }
 }
-
-

@@ -2,44 +2,38 @@
 
 namespace App\Providers;
 
+use App\Ai\Storage\SanitizedConversationStore;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Laravel\Ai\Contracts\ConversationStore;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
-        $this->app->singleton(\App\Services\LLM\LLMProvider::class, function ($app) {
-            return new \App\Services\LLM\OpenAIProvider(
-                http: $app->make(\Illuminate\Http\Client\Factory::class),
-                apiKey: config('services.openai.api_key', env('OPENAI_API_KEY', '')),
-                model: config('services.openai.model', env('OPENAI_MODEL', 'gpt-4o-mini')),
-                baseUrl: config('services.openai.base_url', env('OPENAI_BASE_URL', 'https://api.openai.com/v1')),
+        $this->app->singleton(ConversationStore::class, fn (): SanitizedConversationStore => new SanitizedConversationStore(
+            config('ai.conversations.connection'),
+        ));
+
+        $this->app->singleton(\App\Services\CloudflareR2StorageService::class);
+        $this->app->singleton(\App\Services\AssetDownloadService::class, function ($app) {
+            return new \App\Services\AssetDownloadService(
+                $app->make(\Aws\S3\S3Client::class)
             );
         });
-
-        $this->app->singleton(\App\Services\LLM\ToolRegistry::class);
-        $this->app->singleton(\App\Services\LLM\SystemPromptBuilder::class);
-        $this->app->singleton(\App\Services\BrandChatStore::class);
     }
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
         $this->configureDefaults();
+
+        \App\Models\BrandAsset::observe(\App\Observers\BrandAssetObserver::class);
+        \App\Models\BrandGuideline::observe(\App\Observers\BrandGuidelineObserver::class);
     }
 
-    /**
-     * Configure default behaviors for production-ready applications.
-     */
     protected function configureDefaults(): void
     {
         Date::use(CarbonImmutable::class);
