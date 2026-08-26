@@ -1,15 +1,16 @@
+import { Check, Star } from '@phosphor-icons/react';
 import React, { useState } from 'react';
-import { DynamicComponentProps } from '../registry';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import type { DynamicComponentProps } from '../registry';
 
 // Shared helper: read-only completion banner
 function CompletedBanner({ label }: { label: string }) {
     return (
-        <div className="flex items-center gap-2 rounded border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300">
-            <span className="text-base">✓</span>
+        <div className="flex items-center gap-2 rounded border border-nm-cyan/30 bg-nm-cyan/10 px-4 py-3 text-sm text-nm-cyan">
+            <Check size={14} />
             <span>{label}</span>
         </div>
     );
@@ -41,9 +42,11 @@ export function DirectionComparator({ id, onAction, directions = [], comparisonD
             : result?.action === 'merge'
             ? 'Directions merged'
             : 'Comparison completed';
+
         return (
-            <div className="p-6 border-l-4 border-l-purple-500">
-                <h3 className="text-lg font-semibold mb-3">Direction Comparator</h3>
+            <div className="p-4">
+                <h3 className="text-lg font-display font-semibold mb-3 text-nm-steel dark:text-nm-steel">
+                    Direction Comparator</h3>
                 <CompletedBanner label={winnerLabel} />
             </div>
         );
@@ -60,16 +63,17 @@ export function DirectionComparator({ id, onAction, directions = [], comparisonD
     };
 
     return (
-        <div className="p-6 border-l-4 border-l-purple-500">
+        <div className="p-4">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Direction Comparator</h3>
+                <h3 className="text-lg font-display font-semibold text-nm-steel dark:text-nm-steel">
+                    Direction Comparator</h3>
                 <span className="text-xs text-muted-foreground">
                     Compare {directions.length} directions
                 </span>
             </div>
 
             {directions.length === 0 ? (
-                <div className="text-gray-400 italic text-center py-8">
+                <div className="text-muted-foreground italic text-center py-8">
                     No directions to compare. Build some directions first.
                 </div>
             ) : (
@@ -101,11 +105,7 @@ export function DirectionComparator({ id, onAction, directions = [], comparisonD
                                                             className="h-6 w-6"
                                                             onClick={() => vote(direction.id, dim, star)}
                                                         >
-                                                            <span
-                                                                className={`text-lg ${(votes[direction.id]?.[dim] || 0) >= star ? 'text-yellow-500' : 'text-gray-300'}`}
-                                                            >
-                                                                ★
-                                                            </span>
+                                                                <Star size={16} className={(votes[direction.id]?.[dim] || 0) >= star ? 'text-nm-amber' : 'text-muted-foreground'} />
                                                         </Button>
                                                     ))}
                                                 </div>
@@ -158,8 +158,9 @@ export function FeedbackCollector({ id, onAction, target = 'logo_direction_1', q
 
     if (completed) {
         return (
-            <div className="p-6 border-l-4 border-l-yellow-500">
-                <h3 className="text-lg font-semibold mb-3">Feedback Collector</h3>
+            <div className="p-4">
+                <h3 className="text-lg font-display font-semibold mb-3 text-nm-steel dark:text-nm-steel mb-3">
+                    Feedback Collector</h3>
                 <CompletedBanner label={`Feedback submitted for: ${result?.target ?? target}`} />
             </div>
         );
@@ -176,9 +177,11 @@ export function FeedbackCollector({ id, onAction, target = 'logo_direction_1', q
     };
 
     return (
-        <div className="p-6 border-l-4 border-l-yellow-500">
+        <div className="p-4">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Feedback Collector</h3>
+                <h3 className="text-lg font-display font-semibold text-nm-steel dark:text-nm-steel mb-3">
+                    Feedback Collector
+                </h3>
                 <span className="text-xs text-muted-foreground">Target: {target}</span>
             </div>
 
@@ -195,11 +198,7 @@ export function FeedbackCollector({ id, onAction, target = 'logo_direction_1', q
                                     className="h-8 w-8"
                                     onClick={() => updateResponse(question, 'rating', star)}
                                 >
-                                    <span
-                                        className={`text-xl ${(responses[question]?.rating || 0) >= star ? 'text-yellow-500' : 'text-gray-300'}`}
-                                    >
-                                        ★
-                                    </span>
+                                    <Star size={16} className={(responses[question]?.rating || 0) >= star ? 'text-nm-amber' : 'text-muted-foreground'} />
                                 </Button>
                             ))}
                         </div>
@@ -246,13 +245,15 @@ export function ResonanceConfirmator({ id, onAction, brandId, directionId, summa
 
     if (completed) {
         const decisionLabel =
-            (result?.decision === 'confirm' && 'Direction confirmed ✓') ||
+            (result?.decision === 'confirm' && 'Direction confirmed') ||
             (result?.decision === 'changes' && 'Changes requested') ||
             (result?.decision === 'restart' && 'Started over') ||
             'Completed';
+
         return (
-            <div className="p-6 border-l-4 border-l-green-500">
-                <h3 className="text-lg font-semibold mb-3">Confirm Direction</h3>
+            <div className="p-4">
+                <h3 className="text-lg font-display font-semibold mb-3 text-nm-steel dark:text-nm-steel">
+                    Confirm Direction</h3>
                 <CompletedBanner label={decisionLabel} />
             </div>
         );
@@ -270,18 +271,19 @@ export function ResonanceConfirmator({ id, onAction, brandId, directionId, summa
     };
 
     return (
-        <div className="p-6 border-l-4 border-l-green-500">
+        <div className="p-4">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Confirm Direction</h3>
+                <h3 className="text-lg font-display font-semibold text-nm-steel dark:text-nm-steel">
+                    Confirm Direction</h3>
                 {directionId && (
-                    <span className="text-xs font-mono bg-green-100 text-green-800 px-2 py-1 rounded">
+                    <span className="text-xs font-mono bg-nm-steel/10 text-nm-steel px-2 py-1 rounded">
                         Direction: {directionId}
                     </span>
                 )}
             </div>
 
             {summary && (
-                <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-900 rounded">
+                <div className="mb-6 p-4 bg-nm-steel/10 rounded">
                     <Label className="text-xs text-muted-foreground mb-1 block">Summary</Label>
                     <p className="text-sm">{summary}</p>
                 </div>
@@ -312,7 +314,7 @@ export function ResonanceConfirmator({ id, onAction, brandId, directionId, summa
             </div>
 
             {decision && (
-                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded text-sm text-blue-700 dark:text-blue-300">
+                <div className="mt-4 p-3 bg-nm-cyan/10 rounded text-sm text-nm-cyan">
                     Decision recorded: <strong>{decision}</strong>
                 </div>
             )}

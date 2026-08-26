@@ -1,10 +1,10 @@
-import React, { useEffect, useState, Suspense } from 'react';
-import ReactMarkdown from 'react-markdown';
-import rehypeRaw from 'rehype-raw';
-import rehypeHighlight from 'rehype-highlight';
 import { evaluate } from '@mdx-js/mdx';
+import React, { useEffect, useState, Suspense } from 'react';
 import { Fragment } from 'react';
 import { jsx, jsxs } from 'react/jsx-runtime';
+import ReactMarkdown from 'react-markdown';
+import rehypeHighlight from 'rehype-highlight';
+import rehypeRaw from 'rehype-raw';
 
 interface MessageContentProps {
     content: string;
@@ -24,12 +24,14 @@ export function MessageContent({ content, onAction }: MessageContentProps) {
         if (!content || !content.trim()) {
             setMdxNode(null);
             setMdxError(false);
+
             return;
         }
 
         if (!hasJsx(content)) {
             setMdxNode(null);
             setMdxError(false);
+
             return;
         }
 
@@ -42,22 +44,33 @@ export function MessageContent({ content, onAction }: MessageContentProps) {
             jsx,
             jsxs,
             useMDXComponents: () => {
-                if (!onAction) return MDX_COMPONENTS;
+                if (!onAction) {
+return MDX_COMPONENTS;
+}
+
                 const wrapped: Record<string, React.ComponentType<any>> = {};
+
                 for (const [name, comp] of Object.entries(MDX_COMPONENTS)) {
                     wrapped[name] = (props: any) =>
                         React.createElement(comp, { ...props, onAction });
                 }
+
                 return wrapped;
             },
         })
             .then((mod: { default: React.ComponentType }) => {
-                if (cancelled) return;
+                if (cancelled) {
+return;
+}
+
                 setMdxNode(React.createElement(mod.default));
                 setMdxLoading(false);
             })
             .catch(() => {
-                if (cancelled) return;
+                if (cancelled) {
+return;
+}
+
                 setMdxError(true);
                 setMdxLoading(false);
             });
@@ -67,7 +80,9 @@ export function MessageContent({ content, onAction }: MessageContentProps) {
         };
     }, [content, onAction]);
 
-    if (!content) return null;
+    if (!content) {
+return null;
+}
 
     if (!hasJsx(content)) {
         return renderMarkdown(content);
@@ -98,9 +113,9 @@ function renderMarkdown(content: string): React.ReactElement {
                 ol: ({ node, ...props }) => <ol className="ml-4 list-decimal mb-2" {...props} />,
                 code: ({ node, inline, ...props }: any) =>
                     inline ? (
-                        <code className="px-1 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs" {...props} />
+                        <code className="px-1 py-0.5 bg-nm-steel/10 rounded text-xs font-mono" {...props} />
                     ) : (
-                        <code className="block p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs overflow-x-auto" {...props} />
+                        <code className="block p-2 bg-nm-paper dark:bg-nm-paper-dark rounded text-xs overflow-x-auto font-mono" {...props} />
                     ),
             }}
         >

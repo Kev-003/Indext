@@ -1,13 +1,13 @@
 import { createInertiaApp } from '@inertiajs/react';
+import { Suspense, lazy } from 'react';
+import { ComponentRegistry } from '@/components/dynamic/registry';
+import { registerMessageComponent } from '@/components/message-content';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme } from '@/hooks/use-appearance';
 import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
 import SettingsLayout from '@/layouts/settings/layout';
-import { registerMessageComponent } from '@/components/message-content';
-import { ComponentRegistry } from '@/components/dynamic/registry';
-import { Suspense, lazy } from 'react';
 
 const LazyMindMapCanvas = lazy(() =>
     import('@/components/dynamic/tools/placeholder-tools').then((m) => ({ default: m.MindMapCanvas })),

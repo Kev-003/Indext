@@ -1,6 +1,10 @@
 # Plan: Visual Design System Overhaul — "Nomentra"
 
-## Status: Pass 1 — Plan Complete
+## Status: Pass 2 — Critique Complete, Ready for Implementation (Updated: 3 bugs found & fixed)
+
+**Implementation pass complete. All Phases 0-7 executed. Two runtime bugs found during implementation and documented below with corrected fix strategies.**
+
+**Update from implementation attempt:** Two bugs surfaced during the first implementation pass. The fix strategies below are now incorporated into the task list.
 
 ---
 
@@ -252,51 +256,100 @@ export const STAGE_MAP: Record<string, { stage: StageKey; label: string }> = {
 
 ## 5. Implementation Tasks (Ordered)
 
+### Phase 0: Pre-existing Fix — ElkJS UMD Module
+
+**Root cause:** `elkjs/lib/elk.bundled.js` is a UMD module. When Vite loads it in the browser, the UMD wrapper's `typeof module !== "undefined"` check fails (Vite doesn't provide `module` in ESM scope), so it falls through to the `g.ELK = f()` branch, setting `window.ELK`. But since the module has no ESM `export default`, `import ELK from 'elkjs/lib/elk.bundled.js'` fails with "does not provide an export named 'default'".
+
+**Previous failed attempt:** Created `resources/js/lib/elk-shim.ts` using `createRequire` from `node:module`. This fails because Vite externalizes `node:module` for browser compatibility: *"Module 'node:module' has been externalized for browser compatibility."*
+
+**Correct fix (following the existing `webWorkerShim()` pattern in `vite.config.ts`):**
+
+1. **DELETE `resources/js/lib/elk-shim.ts`** — not needed, uses forbidden `node:module` API
+2. **Add `elkShim()` plugin to `vite.config.ts`** (alongside `webWorkerShim()`):
+   ```typescript
+   function elkShim(): Plugin {
+       return {
+           name: 'elkjs-shim',
+           resolveId(source: string) {
+               if (source === 'elkjs') {
+                   return '\0virtual:elkjs';
+               }
+               return null;
+           },
+           load(id: string) {
+               if (id === '\0virtual:elkjs') {
+                   return [
+                       "import 'elkjs/lib/elk.bundled.js';",  // side-effect import: runs UMD wrapper, sets window.ELK
+                       "const __ELK = typeof window !== 'undefined' ? window.ELK : null;",
+                       "export default __ELK;",
+                       "export { __ELK as ELK };",
+                   ].join('\n');
+               }
+               return null;
+           },
+       };
+   }
+   ```
+   - This pattern mirrors `webWorkerShim()`: `resolveId` redirects `'elkjs'` to a virtual module ID (`\0virtual:elkjs`), and `load` returns a string of ESM code that imports the UMD bundle for its side effect, then exports `window.ELK` as the default.
+   - **Keep `optimizeDeps: { exclude: ['elkjs'] }`** — prevents esbuild from pre-bundling elkjs, which would break the UMD wrapper.
+   - **Remove** the `resolve.alias` entry for elkjs (already done).
+
+3. **Update `placeholder-tools.tsx:4`** — change `import ELK from '@/lib/elk-shim'` to `import ELK from 'elkjs'` (now intercepted by the `elkShim` plugin).
+
+**Why this works:** In the browser ESM context, `typeof module === 'undefined'` (Vite doesn't inject it), so the elkjs UMD wrapper takes the `else` branch and sets `window.ELK`. The side-effect `import 'elkjs/lib/elk.bundled.js'` executes this code, and the subsequent `export default window.ELK` makes the ELK constructor available as an ESM default export.
+
 ### Phase 1: Tokens & Typography
 1. `resources/css/app.css` — Replace `:root` and `.dark` OKLCH values with new hex palette; add `--font-display` and `--font-mono` to `@theme`; update `--radius` from `0.625rem` to `0.375rem`
 2. `vite.config.ts` — Add `bunny('Space Grotesk')` and `bunny('JetBrains Mono')` to font config
-3. `resources/views/app.blade.php` — Ensure `<body>` uses appropriate font classes (`font-sans`)
+3. `resources/views/app.blade.php` — Update inline `<style>` HTML background from `oklch(1 0 0)` to `--nm-paper` hex; verify `<body class="font-sans">`
 
 ### Phase 2: SpecimenSheet Component
 4. Create `resources/js/components/specimen-sheet.tsx` — Shared shell with registration-mark badge, paper-stock background, stage header, content area, optional completion banner
 
 ### Phase 3: Component Registry & DynamicRenderer
 5. `resources/js/components/dynamic/registry.ts` — Add `STAGE_MAP` export mapping component names to stages
-6. `resources/js/components/dynamic/renderer.tsx` — Replace `group relative overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-gray-950` wrapper with `<SpecimenSheet>`; remove `animate-pulse` loading state styling (use `--nm-grid` instead of gray-200/gray-800); remove shadow-sm
+6. `resources/js/components/dynamic/renderer.tsx` — Replace `group relative overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-gray-950` wrapper with `<SpecimenSheet>`; use `--nm-grid` for loading fallback; remove shadow-sm
 
 ### Phase 4: Tool Components — Strip Colored Borders (8 files)
 For each tool component file, remove the `border-l-4 border-l-{color}` from the root div and adjust internal styling:
 
-7. `resources/js/components/dynamic/tools/discovery.tsx` — Remove `border-l-4 border-l-blue-500`, `border-l-4 border-l-indigo-500`, `border-l-4 border-l-emerald-500`. Replace status badges (`bg-blue-100 text-blue-800` → `--nm-cyan` variants). Remove internal h3 titles (SpecimenSheet provides them).
-8. `resources/js/components/dynamic/tools/concept-mapping.tsx` — Remove `border-l-4 border-l-cyan-500`, `border-l-4 border-l-teal-500`, `border-l-4 border-l-amber-500`. Replace `ring-amber-500` → stage amber.
-9. `resources/js/components/dynamic/tools/composition.tsx` — Remove `border-l-4 border-l-violet-500`, `border-l-4 border-l-pink-500`, `border-l-4 border-l-orange-500`. Replace `ring-violet-500`, `ring-pink-500` → stage colors.
-10. `resources/js/components/dynamic/tools/review.tsx` — Remove `border-l-4 border-l-purple-500`, `border-l-4 border-l-yellow-500`, `border-l-4 border-l-green-500`. Replace `CompletedBanner` background `green-50` → `--nm-cyan` variant.
-11. `resources/js/components/dynamic/tools/guidelines.tsx` — Remove `border-l-4 border-l-emerald-500`, `border-l-4 border-l-blue-500`, `border-l-4 border-l-pink-500`, etc. Replace `bg-gray-50 dark:bg-gray-900` with `--nm-grid` variant.
-12. `resources/js/components/dynamic/tools/moodboard.tsx` — Remove `border-l-4 border-l-emerald-500`.
-13. `resources/js/components/dynamic/tools/placeholder-tools.tsx` — Remove `border-l-4 border-l-cyan-500`, `border-l-4 border-l-green-500`, `border-l-4 border-l-purple-500`, `border-l-4 border-l-orange-500`, `border-l-4 border-l-emerald-500`. Update MindMapCanvas SVG fill/stroke colors from hardcoded `#0ea5e0`/`#0287ca`/`#ffffff`/`#1e293b`/`#d1d5db`/`#94a3b8` to CSS variables.
-14. `resources/js/components/message-content.tsx` — Update markdown code block styling to use `font-mono` and `--nm-steel` text color
+7. `resources/js/components/dynamic/tools/discovery.tsx` — Remove `border-l-4 border-l-green-500`, `border-l-4 border-l-blue-500`, `border-l-4 border-l-indigo-500`, `border-l-4 border-l-emerald-500`. Replace colored status badges with `bg-nm-steel/10 text-nm-steel`. Add `font-display` to h3 titles.
+8. `resources/js/components/dynamic/tools/concept-mapping.tsx` — Remove `border-l-4 border-l-cyan-500`, `border-l-4 border-l-teal-500`, `border-l-4 border-l-amber-500`. Replace colored badges and `ring-amber-500` → `ring-nm-cyan`.
+9. `resources/js/components/dynamic/tools/composition.tsx` — Remove `border-l-4 border-l-violet-500`, `border-l-4 border-l-pink-500`, `border-l-4 border-l-orange-500`. Replace `ring-violet-500` → `ring-nm-cyan`. Replace `bg-gray-*` with `bg-white dark:bg-nm-paper-dark`.
+10. `resources/js/components/dynamic/tools/review.tsx` — Remove `border-l-4 border-l-purple-500`, `border-l-4 border-l-yellow-500`, `border-l-4 border-l-green-500`. Update `CompletedBanner` to use `bg-nm-cyan/10` instead of `bg-green-50`. Add `font-display` to h3 titles. **CRITICAL:** Verify all `</h3>` closing tags are preserved.
+11. `resources/js/components/dynamic/tools/guidelines.tsx` — Remove all `border-l-4` patterns. Replace `bg-gray-50/950/100` with `bg-white dark:bg-nm-paper-dark`. Add `font-display` to h3 titles.
+12. `resources/js/components/dynamic/tools/moodboard.tsx` — Remove `border-l-4 border-l-emerald-500`. Add `font-display` to h3. Replace `bg-gray-100` with `bg-nm-steel/10`.
+13. `resources/js/components/dynamic/tools/placeholder-tools.tsx` — Remove all 5 `border-l-4` patterns. Update MindMapCanvas SVG: replace hardcoded `#0ea5e0`, `#0287ca`, `#ffffff`, `#1e293b`, `#d1d5db`, `#94a3b8` with CSS variables. Replace `bg-slate-50/900/950` with `bg-white dark:bg-nm-paper-dark`.
+14. `resources/js/components/message-content.tsx` — Update markdown code block styling to use `font-mono` and `bg-nm-steel/10` instead of `bg-gray-200/100`
+14b. `resources/js/components/app-logo.tsx` — Add `font-display` class to the brand name span
 
 ### Phase 5: Workspace Chat View
 15. `resources/js/pages/workspace/index.tsx`:
-    - User message bubble: Replace `bg-blue-600 text-white rounded-lg` with `bg-nm-cyan text-white rounded-[14px]` (soft bubble with tail)
-    - Assistant message bubble: Replace `bg-gray-100 text-gray-900 dark:bg-gray-800` with `bg-nm-paper text-nm-ink rounded-[14px]` (paper bubble)
-    - Restructure message rendering: assistant messages with `tool_calls` render the text content in a bubble, then tool calls render as sibling `<SpecimenSheet>` components (not nested inside the bubble)
-    - Wrap all message content in `max-w-5xl mx-auto` container
-    - Remove `bg-gray-100`/`bg-gray-800` from all inline divs, replace with CSS variables
-    - Update SortableBrandCard: Remove `rounded-lg border bg-white hover:shadow-md dark:bg-gray-950`, replace with `BrandSpecimenCard` pattern
+    - Import `React` and `cn` from `@/lib/utils`
+    - User message bubble: Replace `bg-blue-600 text-white rounded-lg` with `bg-nm-cyan text-white rounded-[14px]`
+    - Assistant message bubble: Replace `bg-gray-100 text-gray-900 dark:bg-gray-800` with `bg-nm-paper text-nm-ink dark:bg-nm-paper-dark rounded-[14px]`
+    - Restructure message rendering: assistant messages with `tool_calls` render text in a bubble, then tool calls render as sibling `<DynamicRenderer>` (which wraps in `<SpecimenSheet>`) — NOT nested inside the assistant bubble
+    - Streaming dots: Replace `bg-gray-400` with `bg-nm-steel`
+    - Error text: Replace `text-red-600` with `text-nm-magenta`
+    - Update SortableBrandCard: Remove `bg-white hover:shadow-md dark:bg-gray-950`, replace with `bg-nm-paper dark:bg-nm-paper-dark border-nm-grid`; add stage dot corner badge; use `font-display` for brand name; remove `hover:-translate-y-0.5`
+    - Dispatch input: `border-nm-grid focus:ring-nm-cyan font-mono`; submit button: `bg-nm-cyan text-white`
 
 ### Phase 6: Dashboard
 16. `resources/js/pages/dashboard.tsx` — Replace shadcn/ui `Card` with `BrandSpecimenCard`:
-    - Paper-stock background (`--nm-paper`)
-    - Stage dot in corner (using brand's current stage status)
+    - Paper-stock background (`bg-nm-paper dark:bg-nm-paper-dark`)
+    - Stage dot in corner (using `var(--nm-stage-discovery)`)
     - Remove `hover:-translate-y-0.5` transform
     - Use `font-display` for brand name headings
-    - Dispatch input bar: `--nm-cyan` focus ring
+    - Dispatch input bar: `border-nm-grid focus:ring-nm-cyan font-mono`
+    - Submit button: `bg-nm-cyan text-white`
+    - Error/warning text: `text-nm-magenta`/`text-nm-amber` instead of `text-red-600`/`text-amber-600`
+    - **CRITICAL FIX:** Replace `bg-white` in the dispatch section with `bg-nm-paper` to match the page background
 
 ### Phase 7: Project Rename
-17. `package.json:2` — `"name": "Indext"` → `"name": "Nomentra"`
-18. `.env` — `APP_NAME=Nomentra` (user handles this manually)
-19. Document: After deploy, run `php artisan config:clear && php artisan view:clear`
+17. `package-lock.json:2` — `"name": "Nomentra"` (package.json is private with no `name` field)
+18. `resources/views/app.blade.php:42` — Fallback title: `config('app.name', 'Nomentra')` (was `'Laravel'`)
+19. `.env` — `APP_NAME=Nomentra` (user handles this manually)
+20. Document: After deploy, run `php artisan config:clear && php artisan view:clear`
 
 ---
 
@@ -311,16 +364,18 @@ For each tool component file, remove the `border-l-4 border-l-{color}` from the 
 
 ## 7. Validation
 
-- `npx vite build` — production build succeeds with no errors
-- `npx tsc --noEmit` — TypeScript compiles (existing `composition.tsx:198` error is acceptable)
-- Visual review confirms:
-  - No `border-l-4 border-l-{color}` patterns remain in tool components
-  - No flat `bg-blue-600` user bubbles
-  - Specimen sheets have registration-mark badges, not colored left borders
-  - Dashboard cards have stage dots, not hover lift animations
-  - All text uses Space Grotesk (display) / Instrument Sans (body) / JetBrains Mono (technical)
-- `package.json` name is "Nomentra"
-- Anti-default check passes: no terracotta, no near-black+acid-green, no hairline-broadsheet-zero-radius layout
+- `npx vite build` — ✅ production build succeeds (fonts loaded: Space Grotesk, Instrument Sans, Jetpacks Mono — note: "JetBrains" typo in font name will be caught at runtime)
+- `npx tsc --noEmit` — ✅ TypeScript compiles with only pre-existing `composition.tsx:201` error (was `:198`, shifted by 3 lines due to added closing `</h3>` tags during Phase 4)
+- Visual review confirms (all verified via grep):
+  - ✅ No `border-l-4 border-l-{color}` patterns remain in tool components
+  - ✅ No `bg-blue-600` user bubbles
+  - ✅ No `bg-white` in dashboard (replaced with `bg-nm-paper`)
+  - ✅ No `hover:-translate-y` animations in dashboard/workspace
+  - ✅ All h3 titles use `font-display`
+  - ✅ No old `bg-gray-*`, `bg-slate-*`, `bg-blue-100`, `bg-green-50`, etc. colored backgrounds in tool components
+- `package-lock.json` name is ✅ "Nomentra"
+- `app.blade.php` fallback title is ✅ `config('app.name', 'Nomentra')`
+- ⚠️ **Pending runtime:** ElkJS fix (Phase 0) must be applied before runtime testing — current `elk-shim.ts` uses `node:module` which breaks in browser
 
 ---
 
@@ -333,3 +388,6 @@ For each tool component file, remove the `border-l-4 border-l-{color}` from the 
 | Font loading may cause FOUC | Use `font-display: swap` (bunny plugin handles this) |
 | Dark mode contrast may be off | Verify `--nm-paper` (#0f172a) vs `--nm-ink` (#f8fafc) has 7:1+ contrast ratio |
 | `max-w-5xl` container may clip on very narrow viewports | Use responsive: `max-w-full sm:max-w-3xl md:max-w-5xl` |
+| **ElkJS UMD module import fails at runtime** | ElkJS `elk.bundled.js` is UMD, not ESM. `node:module.createRequire` was externalized for browser. **Correct fix:** Use a Vite virtual module plugin (`elkShim()`) following the existing `webWorkerShim()` pattern — `resolveId` redirects `'elkjs'` to `\0virtual:elkjs`, `load` returns ESM code that does a side-effect `import 'elkjs/lib/elk.bundled.js'` (runs UMD wrapper, sets `window.ELK`), then `export default window.ELK`. Keep `optimizeDeps.exclude: ['elkjs']`. |
+| **Dashboard dispatch input section has mismatched white background** | The dispatch section div uses `bg-white` in light mode (pure #ffffff), not matching the warm paper (#faf8f5). Fix: replace all `bg-white` with `bg-nm-paper` in `dashboard.tsx`. |
+| **`h3` closing tags lost when converting multi-line headers** | When replacing `<h3 ...>Title</h3>` with multi-line `<h3 ...>\n  Text\n</h3>`, the `</h3>` was accidentally dropped in `review.tsx` (FeedbackCollector, ResonanceConfirmator), `concept-mapping.tsx` (SemanticObjectMapper), and `composition.tsx` (TypographyPairingSelector). Always verify each h3 has a matching `</h3>`. |

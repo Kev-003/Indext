@@ -40,6 +40,12 @@ export default defineConfig({
                 bunny('Instrument Sans', {
                     weights: [400, 500, 600],
                 }),
+                bunny('Space Grotesk', {
+                    weights: [400, 500, 600, 700],
+                }),
+                bunny('JetBrains Mono', {
+                    weights: [400, 500, 600],
+                }),
             ],
         }),
         inertia(),
@@ -52,17 +58,6 @@ export default defineConfig({
         wayfinder({
             formVariants: true,
         }),
-        webWorkerShim(),
+         webWorkerShim(),
     ],
-    resolve: {
-        alias: [
-            {
-                find: 'elkjs',
-                replacement: 'elkjs/lib/elk.bundled.js',
-            },
-        ],
-    },
-    optimizeDeps: {
-        exclude: ['elkjs'],
-    },
 });

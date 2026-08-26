@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { DynamicComponentProps } from '../registry';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
+import type { DynamicComponentProps } from '../registry';
 
 interface MoodboardComposerProps extends DynamicComponentProps {
     brandId?: number;
@@ -15,7 +15,10 @@ interface MoodboardComposerProps extends DynamicComponentProps {
 }
 
 const normalizeMoodboardPalette = (palette: any[]) => {
-    if (!palette || !Array.isArray(palette)) return [];
+    if (!palette || !Array.isArray(palette)) {
+return [];
+}
+
     return palette.map((c) => ({
         role: c.role || c.name || 'accent',
         hex: c.hex || c.color || '#9ca3af',
@@ -75,9 +78,10 @@ export function MoodboardComposer({ id, onAction, brandId, initialAssets = [], l
     };
 
     return (
-        <div className="p-6 border-l-4 border-l-emerald-500">
+        <div className="p-4">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Moodboard Composer</h3>
+                <h3 className="text-lg font-display font-semibold text-nm-steel dark:text-nm-steel">
+                    Moodboard Composer</h3>
                 <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={addAsset}>
                         Add Asset
@@ -104,7 +108,7 @@ export function MoodboardComposer({ id, onAction, brandId, initialAssets = [], l
                             {asset.url ? (
                                 <img src={asset.url} alt="" className="w-full aspect-square object-cover rounded mb-1" />
                             ) : (
-                                <div className="w-full aspect-square bg-gray-100 dark:bg-gray-800 rounded mb-1 flex items-center justify-center text-gray-400 text-xs">
+                                <div className="w-full aspect-square bg-nm-steel/10 dark:bg-nm-paper-dark rounded mb-1 flex items-center justify-center text-nm-steel text-xs">
                                     No asset
                                 </div>
                             )}
@@ -117,7 +121,7 @@ export function MoodboardComposer({ id, onAction, brandId, initialAssets = [], l
                             <select
                                 value={asset.type}
                                 onChange={(e) => updateAsset(i, 'type', e.target.value)}
-                                className="w-full text-xs border rounded p-1 dark:text-gray-200 dark:border-gray-600 dark:bg-gray-900"
+                                className="w-full text-xs border rounded p-1 dark:border-nm-grid dark:bg-nm-paper-dark"
                             >
                                 <option value="image">Image</option>
                                 <option value="texture">Texture</option>
@@ -126,7 +130,7 @@ export function MoodboardComposer({ id, onAction, brandId, initialAssets = [], l
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-5 w-5 text-red-600 absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition"
+                                className="h-5 w-5 text-nm-magenta absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition"
                                 onClick={() => removeAsset(i)}
                             >
                                 ×
@@ -137,7 +141,7 @@ export function MoodboardComposer({ id, onAction, brandId, initialAssets = [], l
             </div>
 
             {assets.length === 0 && (
-                <div className="text-gray-400 italic text-center py-8 mb-6 border rounded">
+                <div className="text-muted-foreground italic text-center py-8 mb-6 border rounded">
                     No assets yet. Add images, textures, or reference photos to build your moodboard.
                 </div>
             )}
@@ -151,7 +155,7 @@ export function MoodboardComposer({ id, onAction, brandId, initialAssets = [], l
                 </div>
                 <div className="flex flex-wrap gap-2">
                     {palette.length === 0 && (
-                        <div className="text-gray-400 italic text-sm">No colors suggested yet. Add colors or ask the AI for a palette.</div>
+                        <div className="text-muted-foreground italic text-sm">No colors suggested yet. Add colors or ask the AI for a palette.</div>
                     )}
                     {palette.map((color, i) => (
                         <Card key={i} className="relative p-2">
@@ -169,7 +173,7 @@ export function MoodboardComposer({ id, onAction, brandId, initialAssets = [], l
                                  <select
                                         value={color.role}
                                         onChange={(e) => updateColor(i, 'role', e.target.value)}
-                                        className="text-xs border rounded p-1 w-24 dark:text-gray-200 dark:border-gray-600 dark:bg-gray-900"
+                                        className="text-xs border rounded p-1 w-24 dark:border-nm-grid dark:bg-nm-paper-dark"
                                     >
                                         <option value="primary">Primary</option>
                                         <option value="secondary">Secondary</option>
@@ -180,7 +184,7 @@ export function MoodboardComposer({ id, onAction, brandId, initialAssets = [], l
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-5 w-5 text-red-600"
+                                    className="h-5 w-5 text-nm-magenta"
                                     onClick={() => removeColor(i)}
                                 >
                                     ×

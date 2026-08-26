@@ -67,10 +67,6 @@ or (b) a specific interactive component pulled from a fixed registry
 (mind-map canvas, geometric constructor, freeform canvas + brief,
 review/comparison view, applications checklist, guideline preview, asset
 library), pre-parameterized with that brand's own derived material.
-Because Blazor Server already keeps a live connection to the client, the
-same channel carrying the chat can push the next component down without a
-page transition — the AI's "response" and the UI update are the same
-event.
 
 ### The boundary that has to hold
 
@@ -206,9 +202,8 @@ art. The shape stays theirs — the tool only removes shakiness and
 excess complexity, not creative authorship.
 
 Implementation note: candidate for a Rust-to-WASM module (e.g. using
-`kurbo`/`lyon` from the Linebender ecosystem) called from the Blazor
-JS interop layer — keeps Rust in the stack for the one piece that
-benefits most from it, even though the app shell is Blazor.
+`kurbo`/`lyon` from the Linebender ecosystem)
+JS interop layer — keeps Rust in the stack for the one piece that benefits most from it.
 
 ## 5. Presenting Sketches / Feedback Capture
 

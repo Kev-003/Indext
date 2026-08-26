@@ -1,25 +1,12 @@
-import { Head, Link, usePage, router } from '@inertiajs/react';
-import { DynamicRenderer } from '@/components/dynamic/renderer';
-import { useChatStream, Message } from '@/hooks/use-chat-stream';
-import { MessageContent } from '@/components/message-content';
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+import type {
+    DragEndEvent} from '@dnd-kit/core';
 import {
     DndContext,
     closestCenter,
     KeyboardSensor,
     PointerSensor,
     useSensor,
-    useSensors,
-    DragEndEvent,
+    useSensors
 } from '@dnd-kit/core';
 import {
     arrayMove,
@@ -29,7 +16,23 @@ import {
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { Head, Link, usePage, router } from '@inertiajs/react';
 import { ArrowLeft, FolderKanban, GripVertical, Trash2 } from 'lucide-react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { ChatMessage } from '@/components/chat/chat-message';
+import { ChatMessageListSkeleton } from '@/components/chat/chat-message-skeleton';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { useChatStream, formatUserPrompt } from '@/hooks/use-chat-stream';
+import type { Message } from '@/hooks/use-chat-stream';
+import { cn } from '@/lib/utils';
 import { workspace } from '@/routes';
 
 type SortOption = 'manual' | 'name-asc' | 'name-desc' | 'newest' | 'oldest';
@@ -42,6 +45,7 @@ interface WorkspaceProps {
         execution_mode?: string;
         status: string;
         discovery?: Record<string, any>;
+        strategy?: Record<string, any>;
     } | null;
     conversation: {
         id: string;
@@ -101,8 +105,12 @@ function SortableBrandCard({
         <div
             ref={setNodeRef}
             style={style}
-            className="group relative rounded-lg border bg-white p-4 transition hover:shadow-md dark:bg-gray-950"
+            className={cn(
+                "relative w-full max-w-full cursor-pointer rounded-md border border-nm-grid bg-nm-paper p-4 text-nm-ink transition-shadow hover:shadow-md dark:bg-nm-paper-dark",
+                isDragging && "opacity-50",
+            )}
         >
+            <div className="absolute top-0 left-0 h-2 w-2 rounded-bl-none" style={{ backgroundColor: 'var(--nm-stage-discovery)' }} />
             <div className="flex items-start justify-between gap-2">
                 <Link
                     href={workspace(currentTeamSlug, {
@@ -110,14 +118,14 @@ function SortableBrandCard({
                     })}
                     className="block min-w-0 flex-1"
                 >
-                    <h3 className="truncate font-semibold">{brand.name}</h3>
+                    <h3 className="truncate font-display font-semibold text-nm-ink">{brand.name}</h3>
                     <p className="mt-1 text-xs text-muted-foreground">
                         {brand.industry || 'General Industry'}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                         Status: {brand.status}
                     </p>
-                    <p className="mt-2 text-xs text-gray-400">
+                    <p className="mt-2 text-xs text-nm-steel">
                         Updated {brand.updated_at}
                     </p>
                 </Link>
@@ -134,7 +142,7 @@ function SortableBrandCard({
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-red-600 hover:text-red-700"
+                        className="h-8 w-8 text-nm-magenta hover:text-nm-magenta/80"
                         disabled={deletingId === brand.id}
                         onClick={(e) => {
                             e.preventDefault();
@@ -158,15 +166,22 @@ export default function Workspace({
     availableTools,
     autoTrigger,
 }: WorkspaceProps) {
+    const formattedInitialMessages = useMemo(
+        () => initialMessages.map((m) =>
+            m.role === 'user' ? { ...m, content: formatUserPrompt(m.content || '') } : m,
+        ),
+        [initialMessages],
+    );
     const {
         messages,
         isStreaming,
+        isInitialLoading,
         error,
         sendMessage,
         retryLastMessage,
         activeConversationId,
         setMessages,
-    } = useChatStream(initialMessages, initialConversation?.id);
+    } = useChatStream(formattedInitialMessages, initialConversation?.id);
     const [prompt, setPrompt] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [localBrands, setLocalBrands] = useState(initialBrands);
@@ -192,8 +207,12 @@ export default function Workspace({
 
     const handleAction = useCallback(
         (action: string, data: Record<string, any>) => {
-            if (!brand) return;
+            if (!brand) {
+return;
+}
+
             const dataStr = JSON.stringify(data);
+
             if (action === 'submit_interview') {
                 void sendMessage(
                     `INTERVIEW_COMPLETE ${dataStr}`,
@@ -216,21 +235,27 @@ export default function Workspace({
     const autoTriggerFired = useRef(false);
 
     useEffect(() => {
-        if (!brand || isStreaming || !autoTrigger || autoTriggerFired.current)
-            return;
+        if (!brand || isStreaming || !autoTrigger || autoTriggerFired.current) {
+return;
+}
 
         const lastMessage = messages[messages.length - 1];
+
         if (
             !lastMessage ||
             lastMessage.role !== 'user' ||
             !lastMessage.content?.trim()
-        )
-            return;
+        ) {
+return;
+}
 
         const hasAssistantReply = messages.some(
-            (m) => m.role === 'assistant' && m.content?.trim(),
+            (m) => m.role === 'assistant' && (m.content?.trim() || (m.tool_calls?.length ?? 0) > 0),
         );
-        if (hasAssistantReply) return;
+
+        if (hasAssistantReply) {
+return;
+}
 
         autoTriggerFired.current = true;
         sendMessage(
@@ -250,7 +275,10 @@ export default function Workspace({
 
     const handlePromptSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!prompt.trim() || !brand || isStreaming) return;
+
+        if (!prompt.trim() || !brand || isStreaming) {
+return;
+}
 
         const currentPrompt = prompt;
         setPrompt('');
@@ -264,14 +292,17 @@ export default function Workspace({
 
     const handleDeleteBrand = async (brandId: number) => {
         console.log('delete handler start', brandId, window.location.href);
+
         if (
             !confirm(
                 'Are you sure you want to delete this brand? This cannot be undone.',
             )
-        )
-            return;
+        ) {
+return;
+}
 
         setDeletingId(brandId);
+
         try {
             const response = await fetch(`/api/brands/${brandId}`, {
                 method: 'DELETE',
@@ -290,12 +321,14 @@ export default function Workspace({
             if (!response.ok) {
                 let errorMessage = `HTTP ${response.status}: ${response.statusText || ''}`;
                 const contentType = response.headers.get('content-type');
+
                 if (contentType && contentType.includes('application/json')) {
                     try {
                         const errJson = await response.json();
                         errorMessage = errJson.message || errorMessage;
                     } catch {}
                 }
+
                 throw new Error(errorMessage);
             }
 
@@ -314,10 +347,15 @@ export default function Workspace({
     };
 
     const handleDragEnd = async (event: DragEndEvent) => {
-        if (sortBy !== 'manual') return;
+        if (sortBy !== 'manual') {
+return;
+}
 
         const { active, over } = event;
-        if (!over || active.id === over.id) return;
+
+        if (!over || active.id === over.id) {
+return;
+}
 
         const oldIndex = localBrands.findIndex((b) => b.id === active.id);
         const newIndex = localBrands.findIndex((b) => b.id === over.id);
@@ -370,12 +408,12 @@ export default function Workspace({
     if (!brand) {
         return (
             <>
-                <Head title="Workspace - Brands" />
+                <Head title="Nomentra — Workspace" />
                 <div className="flex h-full flex-col">
                     <div className="flex-1 space-y-6 overflow-y-auto p-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <h2 className="text-2xl font-bold tracking-tight">
+                                <h2 className="font-display text-2xl font-bold tracking-tight text-nm-ink">
                                     Your Brands
                                 </h2>
                                 <p className="text-muted-foreground">
@@ -412,9 +450,9 @@ export default function Workspace({
                         </div>
 
                         {localBrands.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center">
+                            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-nm-grid p-12 text-center">
                                 <FolderKanban className="mb-4 h-12 w-12 text-muted-foreground" />
-                                <h3 className="mb-2 text-lg font-semibold">
+                                <h3 className="mb-2 font-display text-lg font-semibold text-nm-ink">
                                     No brands yet
                                 </h3>
                                 <p className="max-w-md text-sm text-muted-foreground">
@@ -459,10 +497,10 @@ export default function Workspace({
 
     // Brand chat mode
     return (
-        <div key={brand?.id || 'empty'}>
-            <Head title={`Workspace - ${brand.name}`} />
+    <div key={brand?.id || 'empty'}>
+            <Head title={`Nomentra • ${brand.name}`} />
             <div className="flex h-full flex-col">
-                <div className="flex items-center justify-between border-b p-4">
+                <div className="flex items-center justify-between border-b border-nm-grid p-4">
                     <div className="flex items-center gap-2">
                         <Button
                             variant="ghost"
@@ -473,24 +511,28 @@ export default function Workspace({
                         >
                             <ArrowLeft className="h-4 w-4" />
                         </Button>
-                        <h2 className="text-lg font-semibold">{brand.name}</h2>
+                        <h2 className="font-display text-lg font-semibold text-nm-ink">
+                            {brand.name}
+                        </h2>
                     </div>
+
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="text-red-600 hover:text-red-700"
+                        className="text-nm-magenta hover:text-nm-magenta/80"
                         onClick={() => handleDeleteBrand(Number(brand.id))}
                     >
                         <Trash2 className="h-4 w-4" />
                     </Button>
                 </div>
-
                 <div className="flex-1 space-y-6 overflow-y-auto p-4">
-                    {messages.length === 0 && (
-                        <div className="flex h-full items-center justify-center text-gray-500">
+                    {isInitialLoading ? (
+                        <ChatMessageListSkeleton />
+                    ) : messages.length === 0 ? (
+                        <div className="flex h-full items-center justify-center text-nm-steel">
                             <div className="text-center">
-                                <h3 className="mb-2 text-lg font-semibold">
-                                    Welcome to {brand.name}
+                                <h3 className="font-display mb-2 text-lg font-semibold text-nm-ink">
+                                    Welcome to Nomentra
                                 </h3>
                                 <p className="max-w-md text-sm text-muted-foreground">
                                     Describe what you want to build for your
@@ -499,95 +541,63 @@ export default function Workspace({
                                 </p>
                             </div>
                         </div>
+                    ) : (
+                        messages.map((message) => {
+                            if (message.role === 'system') {
+                                return null;
+                            }
+
+                            return (
+                                <ChatMessage
+                                    key={message.id}
+                                    message={message}
+                                    onAction={handleAction}
+                                    brandDiscovery={brand?.discovery ?? null}
+                                    brandStrategy={brand?.strategy ?? null}
+                                />
+                            );
+                        })
                     )}
 
-                    {messages.map((message) => (
-                        <div
-                            key={message.id}
-                            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                        >
-                            <div
-                                className={`max-w-[80%] rounded-lg px-4 py-3 ${
-                                    message.role === 'user'
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100'
-                                }`}
-                            >
-                                <MessageContent content={message.content || ''} onAction={handleAction} />
+                    {(() => {
+                        const lastMessage = messages[messages.length - 1];
+                        const showLoadingIndicator =
+                            isStreaming &&
+                            (!lastMessage ||
+                                lastMessage.role === 'user' ||
+                                (lastMessage.role === 'assistant' &&
+                                    !lastMessage.content?.trim() &&
+                                    !lastMessage.tool_calls?.length));
 
-                                {message.tool_calls &&
-                                    message.tool_calls.length > 0 && (
-                                        <div className="mt-4 space-y-4">
-                                            {message.tool_calls.map(
-                                                (toolCall) => {
-                                                    const toolName =
-                                                        toolCall.name;
-                                                    if (!toolName) return null;
-
-                                                    // Check if this tool call has results (i.e. was already completed)
-                                                    const toolResult = message.tool_results?.find(
-                                                        (tr) => tr.tool_call_id === toolCall.id,
-                                                    );
-                                                    const isCompleted = !!toolResult;
-
-                                                    return (
-                                                         <DynamicRenderer
-                                                            key={toolCall.id}
-                                                            onAction={handleAction}
-                                                            components={[
-                                                                {
-                                                                    id:
-                                                                        toolCall
-                                                                            .arguments
-                                                                            .id ||
-                                                                        toolCall.id,
-                                                                    name: toolName,
-                                                                    props: {
-                                                                        ...toolCall.arguments,
-                                                                        completed: isCompleted,
-                                                                        result: toolResult?.result,
-                                                                    },
-                                                                },
-                                                            ]}
-                                                        />
-                                                    );
-                                                },
-                                            )}
-                                        </div>
-                                    )}
-                            </div>
-                        </div>
-                    ))}
-
-                    {isStreaming &&
-                        messages[messages.length - 1]?.role !== 'assistant' && (
+                        return showLoadingIndicator ? (
                             <div className="flex justify-start">
-                                <div className="rounded-lg bg-gray-100 px-4 py-3 dark:bg-gray-800">
+                                <div className="rounded-[14px] bg-nm-paper px-4 py-3 dark:bg-nm-paper-dark">
                                     <div className="flex gap-1">
                                         <div
-                                            className="h-2 w-2 animate-bounce rounded-full bg-gray-400"
+                                            className="h-2 w-2 animate-bounce rounded-full bg-nm-steel"
                                             style={{ animationDelay: '0ms' }}
                                         />
                                         <div
-                                            className="h-2 w-2 animate-bounce rounded-full bg-gray-400"
+                                            className="h-2 w-2 animate-bounce rounded-full bg-nm-steel"
                                             style={{ animationDelay: '150ms' }}
                                         />
                                         <div
-                                            className="h-2 w-2 animate-bounce rounded-full bg-gray-400"
+                                            className="h-2 w-2 animate-bounce rounded-full bg-nm-steel"
                                             style={{ animationDelay: '300ms' }}
                                         />
                                     </div>
                                 </div>
                             </div>
-                        )}
+                        ) : null;
+                    })()}
 
                     <div ref={messagesEndRef} />
                 </div>
 
-                <div className="border-t p-4">
+                <div className="border-t border-nm-grid p-4">
                     {error && (
                         <div className="mb-2 flex items-center gap-2">
-                            <span className="text-sm text-red-600 dark:text-red-400">
+                            <span className="text-sm text-nm-magenta">.
                                 {error}
                             </span>
                             <Button
@@ -605,11 +615,12 @@ export default function Workspace({
                             onChange={(e) => setPrompt(e.target.value)}
                             placeholder="What do you want to build for your brand?"
                             disabled={isStreaming}
-                            className="flex-1"
+                            className="border-nm-grid focus:ring-nm-cyan font-mono"
                         />
                         <Button
                             type="submit"
                             disabled={isStreaming || !prompt.trim()}
+                            className="bg-nm-cyan text-white hover:bg-nm-cyan/90"
                         >
                             {isStreaming ? 'Sending...' : 'Submit'}
                         </Button>

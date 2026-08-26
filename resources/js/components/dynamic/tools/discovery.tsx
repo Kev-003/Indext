@@ -1,11 +1,11 @@
+import { CheckCircle2, Circle } from 'lucide-react';
 import React, { useState } from 'react';
-import { DynamicComponentProps } from '../registry';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { CheckCircle2, Circle } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import type { DynamicComponentProps } from '../registry';
 
 // ---------------------------------------------------------
 // 1.1 ClientInterviewWizard
@@ -75,9 +75,11 @@ export function ClientInterviewWizard({ id, onAction, stage = 'business', prefil
 
     const addCustomTone = () => {
         const custom = customToneInput.trim();
+
         if (custom && !selectedTones.includes(custom)) {
             setFormData({ ...formData, tone: [...selectedTones, custom].join(', ') });
         }
+
         setCustomToneInput('');
     };
 
@@ -87,38 +89,38 @@ export function ClientInterviewWizard({ id, onAction, stage = 'business', prefil
 
     if (submitted) {
         return (
-            <div className="p-6 border-l-4 border-l-green-500">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-green-700">
-                        Interview Complete
-                    </h3>
-                    <span className="text-xs font-mono bg-green-100 text-green-800 px-2 py-1 rounded">
-                        Submitted
-                    </span>
+        <div className="p-4">
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-display font-semibold text-nm-cyan">
+                    Interview Complete
+                </h3>
+                <span className="text-xs font-mono bg-nm-steel/10 text-nm-steel px-2 py-1 rounded">
+                    Submitted
+                </span>
                 </div>
 
                 <div className="mt-4 space-y-3 text-sm">
                     <div>
-                        <span className="font-medium text-gray-600 dark:text-gray-400">Business:</span>
-                        <span className="ml-2 text-gray-800 dark:text-gray-200">
+                        <span className="font-medium text-muted-foreground dark:text-muted-foreground">Business:</span>
+                        <span className="ml-2 text-foreground dark:text-foreground">
                             {formData.businessName}
                         </span>
                     </div>
                     <div>
-                        <span className="font-medium text-gray-600 dark:text-gray-400">Mission:</span>
-                        <p className="ml-2 mt-1 text-gray-800 dark:text-gray-200">
+                        <span className="font-medium text-muted-foreground dark:text-muted-foreground">Mission:</span>
+                        <p className="ml-2 mt-1 text-foreground dark:text-foreground">
                             {formData.mission}
                         </p>
                     </div>
                     <div>
-                        <span className="font-medium text-gray-600 dark:text-gray-400">Audience:</span>
-                        <p className="ml-2 mt-1 text-gray-800 dark:text-gray-200">
+                        <span className="font-medium text-muted-foreground dark:text-muted-foreground">Audience:</span>
+                        <p className="ml-2 mt-1 text-foreground dark:text-foreground">
                             {formData.audience}
                         </p>
                     </div>
                     <div>
-                        <span className="font-medium text-gray-600 dark:text-gray-400">Tone:</span>
-                        <span className="ml-2 text-gray-800 dark:text-gray-200">
+                        <span className="font-medium text-muted-foreground dark:text-muted-foreground">Tone:</span>
+                        <span className="ml-2 text-foreground dark:text-foreground">
                             {formData.tone}
                         </span>
                     </div>
@@ -132,10 +134,12 @@ export function ClientInterviewWizard({ id, onAction, stage = 'business', prefil
     }
 
     return (
-        <div className="p-6 border-l-4 border-l-blue-500">
+        <div className="p-4">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Client Interview</h3>
-                <span className="text-xs font-mono bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                <h3 className="text-lg font-display font-semibold text-nm-cyan dark:text-nm-cyan">
+                    Client Interview
+                </h3>
+                <span className="text-xs font-mono bg-nm-steel/10 text-nm-steel px-2 py-1 rounded">
                     Stage: {stage}
                 </span>
             </div>
@@ -143,6 +147,7 @@ export function ClientInterviewWizard({ id, onAction, stage = 'business', prefil
             <div className="flex gap-2 mb-6">
                 {stages.map((s) => {
                     const complete = isStageComplete(s.key);
+
                     return (
                         <Button
                             key={s.key}
@@ -203,6 +208,7 @@ export function ClientInterviewWizard({ id, onAction, stage = 'business', prefil
                         <div className="flex flex-wrap gap-2">
                             {toneOptions.map((t) => {
                                 const selected = selectedTones.includes(t);
+
                                 return (
                                     <Button
                                         key={t}
@@ -226,12 +232,12 @@ export function ClientInterviewWizard({ id, onAction, stage = 'business', prefil
                                 {selectedTones.map((t: string, i: number) => (
                                     <span
                                         key={i}
-                                        className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded"
+                                        className="text-xs px-2 py-1 bg-nm-cyan/10 text-nm-cyan rounded"
                                     >
                                         {t}
                                         <button
                                             onClick={() => removeTone(t)}
-                                            className="ml-1 hover:text-blue-900"
+                                            className="ml-1 hover:text-nm-cyan"
                                         >
                                             ×
                                         </button>
@@ -244,7 +250,7 @@ export function ClientInterviewWizard({ id, onAction, stage = 'business', prefil
 
                 <div className="flex flex-col gap-2 pt-4">
                     {!isAllComplete && (
-                        <div className="text-xs text-amber-600 dark:text-amber-400">
+                        <div className="text-xs text-nm-amber dark:text-nm-amber">
                             Complete all sections to continue:{' '}
                             {incompleteStages.map((s) => stages.find((st) => st.key === s.key)?.label).join(', ')}
                         </div>
@@ -292,9 +298,11 @@ export function VisualPillarExtractor({ id, onAction, suggestedPillars = [], bra
     };
 
     return (
-        <div className="p-6 border-l-4 border-l-indigo-500">
+        <div className="p-4">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Visual Pillars</h3>
+                <h3 className="text-lg font-display font-semibold text-nm-cyan dark:text-nm-cyan">
+                    Visual Pillars
+                </h3>
                 <span className="text-xs text-muted-foreground">
                     {pillars.length}/4 pillars
                 </span>
@@ -306,8 +314,8 @@ export function VisualPillarExtractor({ id, onAction, suggestedPillars = [], bra
 
             <div className="space-y-2 mb-4">
                 {pillars.map((pillar, i) => (
-                    <div key={i} className="flex items-center gap-2 p-2 border rounded bg-white dark:bg-gray-950">
-                        <span className="text-xs font-mono text-gray-400">{i + 1}</span>
+                    <div key={i} className="flex items-center gap-2 p-2 border border-nm-grid rounded bg-nm-paper dark:bg-nm-paper-dark">
+                        <span className="text-xs font-mono text-nm-steel">{i + 1}</span>
                         <Input
                             value={pillar}
                             onChange={(e) => {
@@ -320,7 +328,7 @@ export function VisualPillarExtractor({ id, onAction, suggestedPillars = [], bra
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-red-600"
+                            className="h-8 w-8 text-nm-magenta"
                             onClick={() => removePillar(i)}
                         >
                             ×
@@ -368,10 +376,12 @@ export function BrandStrategyOverview({ id, onAction, brandId, readonly = false 
     });
 
     return (
-        <div className="p-6 border-l-4 border-l-emerald-500">
+        <div className="p-4">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Brand Strategy Overview</h3>
-                <span className="text-xs font-mono bg-emerald-100 text-emerald-800 px-2 py-1 rounded">
+                <h3 className="text-lg font-display font-semibold text-nm-cyan dark:text-nm-cyan">
+                    Brand Strategy Overview
+                </h3>
+                <span className="text-xs font-mono bg-nm-steel/10 text-nm-steel px-2 py-1 rounded">
                     {readonly ? 'Read Only' : 'Editable'}
                 </span>
             </div>
@@ -391,7 +401,7 @@ export function BrandStrategyOverview({ id, onAction, brandId, readonly = false 
                     <Label>Values</Label>
                     <div className="flex flex-wrap gap-2">
                         {strategy.values.map((val, i) => (
-                            <div key={i} className="flex items-center gap-1 px-3 py-1 border rounded-full bg-white dark:bg-gray-950">
+                            <div key={i} className="flex items-center gap-1 px-3 py-1 border border-nm-grid rounded-full bg-nm-paper dark:bg-nm-paper-dark">
                                 <Input
                                     value={val}
                                     onChange={(e) => {
@@ -406,7 +416,7 @@ export function BrandStrategyOverview({ id, onAction, brandId, readonly = false 
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-6 w-6 text-red-600"
+                                        className="h-6 w-6 text-nm-magenta"
                                         onClick={() => setStrategy({
                                             ...strategy,
                                             values: strategy.values.filter((_, idx) => idx !== i),
@@ -433,7 +443,7 @@ export function BrandStrategyOverview({ id, onAction, brandId, readonly = false 
                     <Label>Visual Pillars</Label>
                     <div className="flex flex-wrap gap-2">
                         {strategy.visualPillars.map((pillar, i) => (
-                            <span key={i} className="px-3 py-1 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-full text-sm">
+                            <span key={i} className="px-3 py-1 bg-nm-cyan/10 dark:bg-nm-paper-dark border border-nm-cyan/30 rounded-full text-sm text-nm-cyan">
                                 {pillar}
                             </span>
                         ))}

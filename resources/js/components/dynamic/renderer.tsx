@@ -1,5 +1,7 @@
 import React, { Suspense } from 'react';
-import { ComponentRegistry } from './registry';
+import { SpecimenSheet } from '@/components/specimen-sheet';
+import type { StageInfo } from './registry';
+import { ComponentRegistry, STAGE_MAP } from './registry';
 
 interface AIComponentData {
     id: string;
@@ -19,9 +21,12 @@ const COMPONENT_NAME_ALIASES: Record<string, string> = {
 };
 
 function resolveComponentName(name: string): string {
-    if (!name) return '';
+    if (!name) {
+return '';
+}
 
     let cleaned = name;
+
     if (cleaned.toLowerCase().startsWith('invoke_')) {
         cleaned = cleaned.slice(7);
     } else if (cleaned.toLowerCase().startsWith('invoke')) {
@@ -31,6 +36,7 @@ function resolveComponentName(name: string): string {
     if (COMPONENT_NAME_ALIASES[cleaned]) {
         cleaned = COMPONENT_NAME_ALIASES[cleaned];
     }
+
     if (ComponentRegistry[cleaned]) {
         return cleaned;
     }
@@ -43,24 +49,66 @@ function resolveComponentName(name: string): string {
     return COMPONENT_NAME_ALIASES[pascal] ?? pascal;
 }
 
+function resolveStageInfo(componentName: string): StageInfo {
+    return STAGE_MAP[componentName] ?? { stage: 'discovery', label: componentName };
+}
+
+function getCompletionLabel(result: any): string {
+    if (!result) {
+return 'Step completed';
+}
+
+    if (result.action === 'select_concept' || result.action === 'select_winner') {
+        return 'Direction selected';
+    }
+
+    if (result.action === 'merge') {
+        return 'Directions merged';
+    }
+
+    if (result.action === 'confirm' || result.decision === 'confirm') {
+        return 'Direction confirmed';
+    }
+
+    if (result.action === 'refine' || result.action === 'changes') {
+        return 'Changes requested';
+    }
+
+    if (result.action === 'restart') {
+        return 'Started over';
+    }
+
+    if (result.action === 'skip') {
+        return 'Skipped';
+    }
+
+    return 'Step completed';
+}
+
 export function DynamicRenderer({ components, onAction }: DynamicRendererProps) {
     return (
         <div className="dynamic-components-container flex flex-col gap-4">
             {components.map((componentData) => {
                 const resolvedName = resolveComponentName(componentData.name);
                 const Component = ComponentRegistry[resolvedName];
+                const stageInfo = resolveStageInfo(resolvedName);
+
+                const completed = !!componentData.props?.completed;
+                const result = componentData.props?.result;
 
                 if (!Component) {
-                    console.warn(
-                        `Attempted to render unknown component: ${componentData.name} (resolved: ${resolvedName})`,
-                    );
                     return (
-                        <div
+                        <SpecimenSheet
                             key={componentData.id}
-                            className="rounded border border-red-500 bg-red-50/50 p-4 text-red-500"
+                            stage={stageInfo.stage}
+                            stageLabel={stageInfo.label}
+                            title="Unknown Component"
                         >
-                            Unknown component: {componentData.name}
-                        </div>
+                            <div className="text-destructive">
+                                Attempted to render unknown component: {componentData.name}
+                                (resolved: {resolvedName})
+                            </div>
+                        </SpecimenSheet>
                     );
                 }
 
@@ -68,18 +116,31 @@ export function DynamicRenderer({ components, onAction }: DynamicRendererProps) 
                     <Suspense
                         key={componentData.id}
                         fallback={
-                            <div className="animate-pulse rounded bg-gray-200 p-4 dark:bg-gray-800">
-                                Loading Tool...
-                            </div>
+                            <SpecimenSheet
+                                stage={stageInfo.stage}
+                                stageLabel={stageInfo.label}
+                                title={resolvedName}
+                            >
+                                <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                                    <div className="h-4 w-4 animate-pulse rounded-full bg-muted" />
+                                    <span>Loading tool…</span>
+                                </div>
+                            </SpecimenSheet>
                         }
                     >
-                        <div className="group relative overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-gray-950">
+                        <SpecimenSheet
+                            stage={stageInfo.stage}
+                            stageLabel={stageInfo.label}
+                            title={resolvedName}
+                            completed={completed}
+                            completionLabel={getCompletionLabel(result)}
+                        >
                             <Component
                                 id={componentData.id}
                                 onAction={onAction}
                                 {...componentData.props}
                             />
-                        </div>
+                        </SpecimenSheet>
                     </Suspense>
                 );
             })}

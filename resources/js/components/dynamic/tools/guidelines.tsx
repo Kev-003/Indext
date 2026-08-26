@@ -1,10 +1,11 @@
+import { Check, X } from '@phosphor-icons/react';
 import React, { useState } from 'react';
-import { DynamicComponentProps } from '../registry';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import type { DynamicComponentProps } from '../registry';
 
 // ---------------------------------------------------------
 // 5.1 BrandGuidelineDocument
@@ -24,46 +25,47 @@ export function BrandGuidelineDocument({ id, onAction, brandId, sections = ['log
                 return (
                     <div className="space-y-4">
                         <h4 className="font-medium">Logo Rules</h4>
-                        <p className="text-sm text-gray-500">Define logo composition, clearspace, minimum size, and usage rules here.</p>
+                        <p className="text-sm text-muted-foreground">Define logo composition, clearspace, minimum size, and usage rules here.</p>
                     </div>
                 );
             case 'color':
                 return (
                     <div className="space-y-4">
                         <h4 className="font-medium">Color System</h4>
-                        <p className="text-sm text-gray-500">Define color hierarchy, CMYK/RGB values, and accessibility rules here.</p>
+                        <p className="text-sm text-muted-foreground">Define color hierarchy, CMYK/RGB values, and accessibility rules here.</p>
                     </div>
                 );
             case 'typography':
                 return (
                     <div className="space-y-4">
                         <h4 className="font-medium">Typography</h4>
-                        <p className="text-sm text-gray-500">Define type pairings, scale, weights, and hierarchy rules here.</p>
+                        <p className="text-sm text-muted-foreground">Define type pairings, scale, weights, and hierarchy rules here.</p>
                     </div>
                 );
             case 'assets':
                 return (
                     <div className="space-y-4">
                         <h4 className="font-medium">Assets & Patterns</h4>
-                        <p className="text-sm text-gray-500">Define shapes, patterns, and usage rules across Social, Web, and Print here.</p>
+                        <p className="text-sm text-muted-foreground">Define shapes, patterns, and usage rules across Social, Web, and Print here.</p>
                     </div>
                 );
             case 'future':
                 return (
                     <div className="space-y-4">
                         <h4 className="font-medium">Future Plans & Governance</h4>
-                        <p className="text-sm text-gray-500">Define development handoff, digital presence, physical touchpoints, and brand governance rules here.</p>
+                        <p className="text-sm text-muted-foreground">Define development handoff, digital presence, physical touchpoints, and brand governance rules here.</p>
                     </div>
                 );
             default:
-                return <p className="text-sm text-gray-400">Select a section to view.</p>;
+                return <p className="text-sm text-muted-foreground">Select a section to view.</p>;
         }
     };
 
     return (
-        <div className="p-6 border-l-4 border-l-emerald-500">
+        <div className="p-4">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Brand Guidelines</h3>
+                <h3 className="text-lg font-display font-semibold text-nm-steel dark:text-nm-steel">
+                    Brand Guidelines</h3>
                 <div className="flex gap-2">
                     {!readonly && (
                         <Button variant="outline" size="sm" onClick={() => onAction?.('complete_step', {
@@ -95,7 +97,7 @@ export function BrandGuidelineDocument({ id, onAction, brandId, sections = ['log
                 ))}
             </div>
 
-            <div className="border rounded-lg p-6 bg-white dark:bg-gray-950 min-h-[300px]">
+            <div className="border rounded-lg p-6 bg-nm-paper dark:bg-nm-paper-dark min-h-[300px]">
                 {renderSection()}
             </div>
         </div>
@@ -115,9 +117,10 @@ export function LogoUsageGuide({ id, brandId, lockups = [], misuseExamples = ['s
     const [showDo, setShowDo] = useState(true);
 
     return (
-        <div className="p-6 border-l-4 border-l-blue-500">
+        <div className="p-4">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Logo Usage Guide</h3>
+                <h3 className="text-lg font-display font-semibold text-nm-steel dark:text-nm-steel">
+                    Logo Usage Guide</h3>
                 <div className="flex gap-2">
                     <Button
                         variant={showDo ? 'default' : 'outline'}
@@ -141,13 +144,13 @@ export function LogoUsageGuide({ id, brandId, lockups = [], misuseExamples = ['s
                     <h4 className="font-medium mb-3">Approved Lockups</h4>
                     <div className="space-y-3">
                         {lockups.map((lockup, i) => (
-                            <div key={i} className="border rounded p-4 bg-gray-50 dark:bg-gray-900">
+                            <div key={i} className="border border-nm-grid rounded p-4 bg-nm-steel/5 dark:bg-nm-paper-dark">
                                 <p className="text-sm font-medium">{lockup.name || `Lockup ${i + 1}`}</p>
                                 <p className="text-xs text-muted-foreground">{lockup.description || 'Standard lockup'}</p>
                             </div>
                         ))}
                         {lockups.length === 0 && (
-                            <p className="text-sm text-gray-400 italic">No lockups defined yet.</p>
+                            <p className="text-sm text-muted-foreground italic">No lockups defined yet.</p>
                         )}
                     </div>
                 </div>
@@ -159,7 +162,10 @@ export function LogoUsageGuide({ id, brandId, lockups = [], misuseExamples = ['s
                     <div className="space-y-3">
                         {misuseExamples.map((example, i) => (
                             <div key={i} className="border rounded p-4">
-                                <p className="text-sm">{showDo ? `✓ ${example}` : `✗ ${example}`}</p>
+                                <p className="text-sm flex items-center gap-1">
+                                    {showDo ? <Check size={14} className="text-nm-cyan" /> : <X size={14} className="text-nm-magenta" />}
+                                    {example}
+                                </p>
                             </div>
                         ))}
                     </div>
@@ -182,9 +188,10 @@ export function ColorSystemDocument({ id, brandId, palette = [], hierarchy = {} 
     const [view, setView] = useState<'digital' | 'print'>('digital');
 
     return (
-        <div className="p-6 border-l-4 border-l-pink-500">
+        <div className="p-4">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Color System</h3>
+                <h3 className="text-lg font-display font-semibold text-nm-steel dark:text-nm-steel">
+                    Color System</h3>
                 <div className="flex gap-2">
                     {['digital', 'print'].map((v) => (
                         <Button
@@ -209,11 +216,11 @@ export function ColorSystemDocument({ id, brandId, palette = [], hierarchy = {} 
                                 style={{ backgroundColor: color }}
                             />
                             <p className="text-xs font-medium capitalize">{role}</p>
-                            <p className="text-xs text-gray-500 font-mono">{color}</p>
+                            <p className="text-xs text-muted-foreground font-mono">{color}</p>
                         </div>
                     ))}
                     {Object.keys(hierarchy).length === 0 && (
-                        <p className="text-sm text-gray-400 italic">No hierarchy defined.</p>
+                        <p className="text-sm text-muted-foreground italic">No hierarchy defined.</p>
                     )}
                 </div>
             </div>
@@ -231,7 +238,7 @@ export function ColorSystemDocument({ id, brandId, palette = [], hierarchy = {} 
                         </div>
                     ))}
                     {palette.length === 0 && (
-                        <p className="text-sm text-gray-400 italic col-span-full">No palette colors yet.</p>
+                        <p className="text-sm text-muted-foreground italic col-span-full">No palette colors yet.</p>
                     )}
                 </div>
             </div>
@@ -252,9 +259,10 @@ export function AssetPatternLibrary({ id, brandId, patterns = [], contexts = ['s
     const [selectedContext, setSelectedContext] = useState<string | null>(null);
 
     return (
-        <div className="p-6 border-l-4 border-l-indigo-500">
+        <div className="p-4">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Asset & Pattern Library</h3>
+                <h3 className="text-lg font-display font-semibold text-nm-steel dark:text-nm-steel">
+                    Asset & Pattern Library</h3>
                 <div className="flex gap-2">
                     {contexts.map((ctx) => (
                         <Button
@@ -273,11 +281,11 @@ export function AssetPatternLibrary({ id, brandId, patterns = [], contexts = ['s
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {patterns.map((pattern, i) => (
                     <Card key={i} className="overflow-hidden">
-                        <div className="aspect-video bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
+                        <div className="aspect-video bg-nm-steel/10 dark:bg-nm-paper-dark flex items-center justify-center">
                             {pattern.svg ? (
                                 <div dangerouslySetInnerHTML={{ __html: pattern.svg }} />
                             ) : (
-                                <span className="text-xs text-gray-400">Pattern {i + 1}</span>
+                                <span className="text-xs text-muted-foreground">Pattern {i + 1}</span>
                             )}
                         </div>
                         <CardContent className="p-3">
@@ -287,7 +295,7 @@ export function AssetPatternLibrary({ id, brandId, patterns = [], contexts = ['s
                     </Card>
                 ))}
                 {patterns.length === 0 && (
-                    <div className="col-span-full text-gray-400 italic text-center py-8">
+                    <div className="col-span-full text-muted-foreground italic text-center py-8">
                         No patterns generated yet.
                     </div>
                 )}
@@ -306,14 +314,15 @@ interface TypographyHierarchyDocProps extends DynamicComponentProps {
 
 export function TypographyHierarchyDoc({ id, brandId, pairings = [] }: TypographyHierarchyDocProps) {
     return (
-        <div className="p-6 border-l-4 border-l-purple-500">
+        <div className="p-4">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Typography Hierarchy</h3>
+                <h3 className="text-lg font-display font-semibold text-nm-steel dark:text-nm-steel">
+                    Typography Hierarchy</h3>
                 <Button variant="outline" size="sm">Export Specimen</Button>
             </div>
 
             {pairings.length === 0 ? (
-                <div className="text-gray-400 italic text-center py-8">
+                <div className="text-muted-foreground italic text-center py-8">
                     No typography pairings defined yet.
                 </div>
             ) : (
@@ -334,7 +343,7 @@ export function TypographyHierarchyDoc({ id, brandId, pairings = [] }: Typograph
                                     <Label>Type Scale</Label>
                                     <div className="flex flex-wrap gap-2">
                                         {pairing.scale.map((size, j) => (
-                                            <span key={j} className="px-2 py-1 bg-gray-100 dark:bg-gray-900 rounded text-xs font-mono">
+                                            <span key={j} className="px-2 py-1 bg-nm-steel/10 dark:bg-nm-paper-dark rounded text-xs font-mono text-nm-steel">
                                                 {size}
                                             </span>
                                         ))}
@@ -371,10 +380,11 @@ export function DevHandoffPackage({ id, onAction, brandId, tokens = {}, assets =
     };
 
     return (
-        <div className="p-6 border-l-4 border-l-gray-500">
+        <div className="p-4">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Dev Handoff Package</h3>
-                <span className="text-xs font-mono bg-gray-100 text-gray-800 px-2 py-1 rounded">
+                <h3 className="text-lg font-display font-semibold text-nm-steel dark:text-nm-steel">
+                    Dev Handoff Package</h3>
+                <span className="text-xs font-mono bg-nm-steel/10 text-nm-steel px-2 py-1 rounded">
                     {touchpoints.length} touchpoints
                 </span>
             </div>
@@ -384,12 +394,12 @@ export function DevHandoffPackage({ id, onAction, brandId, tokens = {}, assets =
                     <h4 className="font-medium mb-3">Design Tokens</h4>
                     <div className="space-y-2">
                         {Object.keys(tokens).length === 0 ? (
-                            <p className="text-sm text-gray-400 italic">No tokens generated yet.</p>
+                            <p className="text-sm text-muted-foreground italic">No tokens generated yet.</p>
                         ) : (
                             Object.entries(tokens).map(([key, value]) => (
                                 <div key={key} className="flex justify-between p-2 border rounded text-sm">
                                     <span className="font-mono">{key}</span>
-                                    <span className="text-gray-600 dark:text-gray-400">
+                                    <span className="text-muted-foreground dark:text-muted-foreground">
                                         {typeof value === 'object' ? JSON.stringify(value) : String(value)}
                                     </span>
                                 </div>
@@ -419,7 +429,7 @@ export function DevHandoffPackage({ id, onAction, brandId, tokens = {}, assets =
                 <h4 className="font-medium mb-3">Touchpoints</h4>
                 <div className="flex flex-wrap gap-2">
                     {touchpoints.map((tp) => (
-                        <span key={tp} className="px-3 py-1 bg-gray-100 dark:bg-gray-900 rounded-full text-sm capitalize">
+                        <span key={tp} className="px-3 py-1 bg-nm-steel/10 dark:bg-nm-paper-dark rounded-full text-sm text-nm-steel capitalize">
                             {tp}
                         </span>
                     ))}

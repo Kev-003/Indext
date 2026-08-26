@@ -1,10 +1,11 @@
+import { Check, Target } from '@phosphor-icons/react';
 import React, { useState } from 'react';
-import { DynamicComponentProps } from '../registry';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import type { DynamicComponentProps } from '../registry';
 
 // ---------------------------------------------------------
 // 2.1 KeywordMindMap
@@ -32,28 +33,30 @@ export function KeywordMindMap({ id, onAction, rootNode = 'Brand', keywords = []
     };
 
     return (
-        <div className="p-6 border-l-4 border-l-cyan-500">
+        <div className="p-4">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Keyword Mind Map</h3>
-                <span className="text-xs font-mono bg-cyan-100 text-cyan-800 px-2 py-1 rounded">
+                <h3 className="text-lg font-display font-semibold text-nm-magenta dark:text-nm-magenta">
+                    Keyword Mind Map
+                </h3>
+                <span className="text-xs font-mono bg-nm-steel/10 text-nm-steel px-2 py-1 rounded">
                     Layout: {layout}
                 </span>
             </div>
 
             <div className="mb-4">
-                <div className="inline-block px-4 py-2 bg-gray-900 text-white rounded-full text-sm font-medium">
+                <div className="inline-block px-4 py-2 bg-nm-paper dark:bg-nm-paper-dark text-nm-ink rounded-full text-sm font-medium">
                     {rootNode}
                 </div>
             </div>
 
             <div className="flex flex-wrap gap-2 mb-4">
                 {nodes.map((node, i) => (
-                    <div key={i} className="group relative flex items-center gap-1 px-3 py-2 border rounded-full bg-white dark:bg-gray-950 shadow-sm hover:shadow-md transition">
+                     <div key={i} className="group relative flex items-center gap-1 px-3 py-2 border border-nm-grid rounded-full bg-white dark:bg-nm-paper-dark shadow-sm hover:shadow-md transition">
                         <span className="text-sm">{node}</span>
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="h-5 w-5 text-red-600 opacity-0 group-hover:opacity-100 transition"
+                            className="h-5 w-5 text-nm-magenta opacity-0 group-hover:opacity-100 transition"
                             onClick={() => removeNode(i)}
                         >
                             ×
@@ -61,7 +64,7 @@ export function KeywordMindMap({ id, onAction, rootNode = 'Brand', keywords = []
                     </div>
                 ))}
                 {nodes.length === 0 && (
-                    <div className="text-gray-400 italic text-sm">No keywords added yet</div>
+                    <div className="text-muted-foreground italic text-sm">No keywords added yet</div>
                 )}
             </div>
 
@@ -109,15 +112,18 @@ export function SemanticObjectMapper({ id, onAction, keyword = 'Growth', suggest
     const [customObject, setCustomObject] = useState('');
 
     const allOptions = [...suggestions];
+
     if (customObject && !allOptions.includes(customObject)) {
         allOptions.push(customObject);
     }
 
     return (
-        <div className="p-6 border-l-4 border-l-teal-500">
+        <div className="p-4">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Semantic Object Mapper</h3>
-                <span className="text-xs font-mono bg-teal-100 text-teal-800 px-2 py-1 rounded">
+                <h3 className="text-lg font-display font-semibold text-nm-magenta dark:text-nm-magenta">
+                    Semantic Object Mapper
+                </h3>
+                <span className="text-xs font-mono bg-nm-steel/10 text-nm-steel px-2 py-1 rounded">
                     Mode: {mode}
                 </span>
             </div>
@@ -131,11 +137,11 @@ export function SemanticObjectMapper({ id, onAction, keyword = 'Growth', suggest
                 {allOptions.map((obj, i) => (
                     <Card
                         key={i}
-                        className={`cursor-pointer transition hover:shadow-md ${selected === obj ? 'ring-2 ring-teal-500' : ''}`}
+                        className={`cursor-pointer transition hover:shadow-md ${selected === obj ? 'ring-2 ring-nm-magenta' : ''}`}
                         onClick={() => setSelected(obj)}
                     >
                         <CardContent className="p-4 text-center">
-                            <div className="text-2xl mb-2">🎯</div>
+                            <Target size={24} className="text-nm-magenta mx-auto mb-2" />
                             <p className="text-sm font-medium">{obj}</p>
                         </CardContent>
                     </Card>
@@ -201,11 +207,13 @@ export function DesignConceptExplorer({ id, onAction, concepts = [], completed, 
 
     if (completed) {
         const conceptName = result?.concept?.title ?? result?.concept?.name ?? result?.selected_concept_id ?? 'concept';
+
         return (
-            <div className="p-6 border-l-4 border-l-amber-500">
-                <h3 className="text-lg font-semibold mb-3">Design Concept Explorer</h3>
-                <div className="flex items-center gap-2 rounded border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300">
-                    <span className="text-base">✓</span>
+            <div className="p-4">
+                <h3 className="text-lg font-display font-semibold text-nm-magenta dark:text-nm-magenta">
+                    Design Concept Explorer</h3>
+                <div className="flex items-center gap-2 rounded border border-nm-cyan/30 bg-nm-cyan/10 px-4 py-3 text-sm text-nm-cyan dark:border-nm-cyan/30 dark:bg-nm-cyan/10 dark:text-nm-cyan">
+                    <Check size={14} />
                     <span>Selected concept: {conceptName}</span>
                 </div>
             </div>
@@ -213,16 +221,17 @@ export function DesignConceptExplorer({ id, onAction, concepts = [], completed, 
     }
 
     return (
-        <div className="p-6 border-l-4 border-l-amber-500">
+        <div className="p-4">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Design Concept Explorer</h3>
+                <h3 className="text-lg font-display font-semibold text-nm-magenta dark:text-nm-magenta">
+                    Design Concept Explorer</h3>
                 <span className="text-xs text-muted-foreground">
                     {concepts.length} directions
                 </span>
             </div>
 
             {concepts.length === 0 ? (
-                <div className="text-gray-400 italic text-center py-8">
+                <div className="text-muted-foreground italic text-center py-8">
                     No design concepts generated yet. Ask the AI to explore directions.
                 </div>
             ) : (
@@ -236,7 +245,7 @@ export function DesignConceptExplorer({ id, onAction, concepts = [], completed, 
                         return (
                             <Card
                                 key={conceptId}
-                                className={`cursor-pointer transition hover:shadow-md ${isSelected ? 'ring-2 ring-amber-500' : ''}`}
+                                className={`cursor-pointer transition hover:shadow-md ${isSelected ? 'ring-2 ring-nm-magenta' : ''}`}
                                 onClick={() => setSelectedConcept(conceptId)}
                             >
                                 <CardHeader className="p-4 pb-2">

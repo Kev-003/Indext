@@ -1,4 +1,5 @@
-import React, { lazy, Suspense } from 'react';
+import type React from 'react';
+import { lazy, Suspense } from 'react';
 
 // Define the component signature expected by all dynamic tools
 export interface DynamicComponentProps {
@@ -87,3 +88,67 @@ export const ComponentRegistry: Record<string, React.ComponentType<DynamicCompon
 };
 
 export type RegisteredComponentName = keyof typeof ComponentRegistry;
+
+export type StageKey =
+    | 'discovery'
+    | 'concept'
+    | 'composition'
+    | 'review'
+    | 'guidelines'
+    | 'assets';
+
+export interface StageInfo {
+    stage: StageKey;
+    label: string;
+}
+
+export const STAGE_MAP: Record<string, StageInfo> = {
+    ClientInterviewWizard: { stage: 'discovery', label: 'CLIENT INTERVIEW' },
+    VisualPillarExtractor: { stage: 'discovery', label: 'VISUAL PILLARS' },
+    BrandStrategyOverview: { stage: 'discovery', label: 'STRATEGY OVERVIEW' },
+    KeywordMindMap: { stage: 'concept', label: 'KEYWORD MIND MAP' },
+    SemanticObjectMapper: { stage: 'concept', label: 'SEMANTIC MAPPING' },
+    DesignConceptExplorer: { stage: 'concept', label: 'CONCEPT EXPLORER' },
+    TypographyPairingSelector: { stage: 'composition', label: 'TYPOGRAPHY' },
+    ColorHierarchyBuilder: { stage: 'composition', label: 'COLOR SYSTEM' },
+    LogoCompositionBuilder: { stage: 'composition', label: 'LOGO COMPOSITION' },
+    DirectionComparator: { stage: 'review', label: 'DIRECTION COMPARE' },
+    FeedbackCollector: { stage: 'review', label: 'FEEDBACK' },
+    ResonanceConfirmator: { stage: 'review', label: 'CONFIRM DIRECTION' },
+    BrandGuidelineDocument: { stage: 'guidelines', label: 'BRAND GUIDELINES' },
+    LogoUsageGuide: { stage: 'guidelines', label: 'LOGO USAGE' },
+    ColorSystemDocument: { stage: 'guidelines', label: 'COLOR SYSTEM' },
+    AssetPatternLibrary: { stage: 'guidelines', label: 'ASSET LIBRARY' },
+    TypographyHierarchyDoc: { stage: 'guidelines', label: 'TYPOGRAPHY HIERARCHY' },
+    DevHandoffPackage: { stage: 'guidelines', label: 'DEV HANDOFF' },
+    MoodboardComposer: { stage: 'assets', label: 'MOODBOARD' },
+    MindMapCanvas: { stage: 'concept', label: 'MIND MAP' },
+    PalettePicker: { stage: 'composition', label: 'PALETTE' },
+    GeometricConstructor: { stage: 'composition', label: 'GEOMETRIC CONSTRUCTOR' },
+    ReviewView: { stage: 'review', label: 'DIRECTION REVIEW' },
+    GuidelinePreview: { stage: 'guidelines', label: 'GUIDELINE PREVIEW' },
+};
+
+// Maps component names to the step keys stored in brand.discovery
+// (or brand.strategy for ClientInterviewWizard) so we can determine
+// whether a wizard/tool has been completed on page reload.
+export const COMPONENT_STEP_MAP: Record<string, string | undefined> = {
+    ClientInterviewWizard: 'interview',
+    MindMapCanvas: 'mindmap_confirm',
+    KeywordMindMap: 'keyword_mindmap',
+    SemanticObjectMapper: 'semantic_mapper',
+    DesignConceptExplorer: 'concept_explorer',
+    VisualPillarExtractor: 'visual_pillars',
+    BrandStrategyOverview: 'brand_strategy',
+    TypographyPairingSelector: 'typography_pairing',
+    ColorHierarchyBuilder: 'color_hierarchy',
+    LogoCompositionBuilder: 'logo_composition',
+    DirectionComparator: 'direction_compare',
+    FeedbackCollector: 'feedback_collect',
+    ResonanceConfirmator: 'resonance_confirm',
+    MoodboardComposer: 'moodboard',
+    DevHandoffPackage: 'dev_handoff',
+    ColorSystemDocument: 'color_system',
+    AssetPatternLibrary: 'asset_pattern',
+    TypographyHierarchyDoc: 'typography_hierarchy',
+};

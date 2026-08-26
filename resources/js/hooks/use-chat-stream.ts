@@ -16,6 +16,39 @@ export interface Message {
     created_at: string;
 }
 
+export function formatUserPrompt(prompt: string): string {
+    if (prompt.startsWith('STEP_COMPLETE ')) {
+        try {
+            const data = JSON.parse(prompt.slice('STEP_COMPLETE '.length));
+            const step = data.step
+                ? data.step.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+                : 'Step';
+
+            if (data.action === 'select_concept' && (data.concept?.title || data.concept?.name)) {
+                return `Selected concept: ${data.concept.title ?? data.concept.name}`;
+            }
+
+            if (data.action === 'refine' && (data.concept?.title || data.concept?.name)) {
+                return `Refine concept: ${data.concept.title ?? data.concept.name}`;
+            }
+
+            if (data.palette) {
+                return `Confirmed ${step} palette`;
+            }
+
+            return `Completed: ${step}`;
+        } catch {
+            return 'Step completed';
+        }
+    }
+
+    if (prompt.startsWith('INTERVIEW_COMPLETE ')) {
+        return 'Interview submitted';
+    }
+
+    return prompt;
+}
+
 export interface ToolCall {
     id: string;
     name: string;
@@ -25,6 +58,7 @@ export interface ToolCall {
 export interface ChatState {
     messages: Message[];
     isStreaming: boolean;
+    isInitialLoading: boolean;
     error: string | null;
     activeConversationId: string | number | null;
     sendMessage: (prompt: string, brandId: string | number, conversationId?: string | number) => Promise<void>;
@@ -35,6 +69,7 @@ export interface ChatState {
 export function useChatStream(initialMessages: Message[] = [], initialConversationId?: string | number | null): ChatState {
     const [messages, setMessages] = useState<Message[]>(initialMessages);
     const [isStreaming, setIsStreaming] = useState(false);
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [activeConversationId, setActiveConversationId] = useState<string | number | null>(initialConversationId ?? null);
     const abortControllerRef = useRef<AbortController | null>(null);
@@ -54,38 +89,14 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
         }
+
         const controller = new AbortController();
         abortControllerRef.current = controller;
 
-        // Build a human-readable display label for system-generated prompts
-        // so the user doesn't see raw JSON in the chat. The actual prompt sent
-        // to the API is unchanged (we only prettify what's shown in the UI).
-        const displayContent = (() => {
-            if (prompt.startsWith('STEP_COMPLETE ')) {
-                try {
-                    const data = JSON.parse(prompt.slice('STEP_COMPLETE '.length));
-                    const step = data.step
-                        ? data.step.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
-                        : 'Step';
-                    if (data.action === 'select_concept' && (data.concept?.title || data.concept?.name)) {
-                        return `✓ Selected concept: ${data.concept.title ?? data.concept.name}`;
-                    }
-                    if (data.action === 'refine' && (data.concept?.title || data.concept?.name)) {
-                        return `↺ Refine concept: ${data.concept.title ?? data.concept.name}`;
-                    }
-                    if (data.palette) {
-                        return `✓ Confirmed ${step} palette`;
-                    }
-                    return `✓ Completed: ${step}`;
-                } catch {
-                    return '✓ Step completed';
-                }
-            }
-            if (prompt.startsWith('INTERVIEW_COMPLETE ')) {
-                return '✓ Interview submitted';
-            }
-            return prompt;
-        })();
+        // Use formatUserPrompt to prettify system-generated prompts so the user
+        // doesn't see raw JSON in the chat. The actual prompt sent to the API
+        // is unchanged (we only prettify what's shown in the UI).
+        const displayContent = formatUserPrompt(prompt);
 
         const userMessage: Message = {
             id: `user_${Date.now()}`,
@@ -96,9 +107,11 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
 
         setMessages((prev) => {
             const last = prev[prev.length - 1];
+
             if (last && last.role === 'user' && last.content === displayContent) {
                 return prev;
             }
+
             return [...prev, userMessage];
         });
 
@@ -120,6 +133,7 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
 
         try {
             const url = new URL(`/api/brands/${brandId}/chat/message`, window.location.origin);
+
             if (conversationId) {
                 url.searchParams.set('conversation_id', String(conversationId));
             }
@@ -144,6 +158,7 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
             if (!response.ok) {
                 let errorMessage = `HTTP ${response.status}: ${response.statusText || 'Server Error'}`;
                 const contentType = response.headers.get('content-type');
+
                 if (contentType && contentType.includes('application/json')) {
                     try {
                         const errJson = await response.json();
@@ -153,10 +168,12 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
                     errorMessage = `HTTP ${response.status}: Server returned an error page (${response.statusText || 'Internal Server Error'})`;
                 } else {
                     const text = await response.text();
+
                     if (text && text.length < 200) {
                         errorMessage = text;
                     }
                 }
+
                 throw new Error(errorMessage);
             }
 
@@ -164,11 +181,14 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
             const decoder = new TextDecoder();
             let buffer = '';
             let accumulatedContent = '';
-            let toolCalls: Array<{ id: string; name: string; arguments: Record<string, any> }> = [];
+            const toolCalls: Array<{ id: string; name: string; arguments: Record<string, any> }> = [];
 
             while (true) {
                 const { done, value } = await reader!.read();
-                if (done) break;
+
+                if (done) {
+break;
+}
 
                 buffer += decoder.decode(value, { stream: true });
                 const lines = buffer.split('\n');
@@ -176,10 +196,16 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
 
                 for (const line of lines) {
                     const trimmed = line.trim();
-                    if (!trimmed || !trimmed.startsWith('data:')) continue;
+
+                    if (!trimmed || !trimmed.startsWith('data:')) {
+continue;
+}
 
                     const data = trimmed.slice(5).trim();
-                    if (data === '[DONE]') continue;
+
+                    if (data === '[DONE]') {
+continue;
+}
 
                     try {
                         const parsed = JSON.parse(data);
@@ -205,9 +231,11 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
 
                         if (parsed.id && parsed.name && parsed.arguments) {
                             let existing = toolCalls.find((t) => t.id === parsed.id);
+
                             if (!existing) {
                                 existing = toolCalls.find((t) => t.name === parsed.name);
                             }
+
                             if (existing) {
                                 existing.arguments = { ...existing.arguments, ...parsed.arguments };
                                 existing.id = parsed.id;
@@ -270,7 +298,9 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
         const conversationId = lastConversationIdRef.current;
         const assistantMessageId = lastAssistantMessageIdRef.current;
 
-        if (!prompt || !brandId) return;
+        if (!prompt || !brandId) {
+return;
+}
 
         setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId));
         setError(null);
@@ -286,5 +316,9 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
         };
     }, []);
 
-    return { messages, isStreaming, error, activeConversationId, sendMessage, retryLastMessage, setMessages };
+    useEffect(() => {
+        setIsInitialLoading(false);
+    }, []);
+
+    return { messages, isStreaming, isInitialLoading, error, activeConversationId, sendMessage, retryLastMessage, setMessages };
 }

@@ -1,8 +1,8 @@
+import ELK from 'elkjs';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { DynamicComponentProps } from '../registry';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import ELK from 'elkjs/lib/elk.bundled.js';
+import type { DynamicComponentProps } from '../registry';
 
 const elk = new ELK({
     defaultLayoutOptions: {
@@ -39,7 +39,10 @@ const NODE_W = 140;
 const NODE_H = 44;
 
 function normalizeNodes(raw: string[] | GraphNode[] | undefined): GraphNode[] {
-    if (!raw || raw.length === 0) return [];
+    if (!raw || raw.length === 0) {
+return [];
+}
+
     return raw.map((n) =>
         typeof n === 'string'
             ? { id: n, label: n }
@@ -112,7 +115,9 @@ export function MindMapCanvas({
     }, [nodes, edges]);
 
     useEffect(() => {
-        if (graphNodes.length === 0) return;
+        if (graphNodes.length === 0) {
+return;
+}
 
         const rootId = graphNodes[0].id || graphNodes[0].label;
         const graph = buildElkGraph(graphNodes, graphEdges, rootId);
@@ -129,7 +134,10 @@ export function MindMapCanvas({
                         width: node.width || NODE_W,
                         height: node.height || NODE_H,
                     });
-                    if (node.children) node.children.forEach(collect);
+
+                    if (node.children) {
+node.children.forEach(collect);
+}
                 };
                 collect(result);
                 setGraphNodes(updated);
@@ -146,7 +154,11 @@ export function MindMapCanvas({
 
     const handleAddChild = (parentId: string) => {
         const label = prompt('Enter keyword:');
-        if (!label) return;
+
+        if (!label) {
+return;
+}
+
         const newNode: GraphNode = { id: `n_${Date.now()}`, label };
         const newEdge: GraphEdge = {
             id: `e_${Date.now()}`,
@@ -182,7 +194,11 @@ export function MindMapCanvas({
 
     const commitEdit = (nodeId: string) => {
         const label = editText.trim();
-        if (!label) return;
+
+        if (!label) {
+return;
+}
+
         const updated = graphNodes.map((n) =>
             n.id === nodeId ? { ...n, label, id: label } : n,
         );
@@ -197,6 +213,7 @@ export function MindMapCanvas({
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         const label = newLabel.trim();
+
         if (label) {
             const id = `n_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
             const newNode: GraphNode = { id, label, x, y };
@@ -208,10 +225,10 @@ export function MindMapCanvas({
     const rootId = graphNodes[0]?.id || 'Brand';
 
     return (
-        <div className="border-l-4 border-l-cyan-500 p-6">
+        <div className="p-4">
             <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-semibold">{title}</h3>
-                <span className="rounded bg-cyan-100 px-2 py-1 font-mono text-xs text-cyan-800">
+                <h3 className="text-lg font-display font-semibold text-nm-magenta dark:text-nm-magenta">{title}</h3>
+                <span className="rounded bg-nm-steel/10 px-2 py-1 font-mono text-xs text-nm-steel">
                     {graphNodes.length} nodes • {graphEdges.length} edges
                 </span>
             </div>
@@ -235,18 +252,17 @@ export function MindMapCanvas({
 
             <div
                 ref={containerRef}
-                className="overflow-auto rounded-lg border bg-slate-50 dark:bg-slate-900"
-                style={{ height: '400px' }}
-            >
+                className="overflow-auto rounded-lg border border-nm-grid bg-nm-paper dark:bg-nm-paper-dark"
+                style={{ height: '400px' }}>
                 {graphNodes.length === 0 ? (
-                    <div className="flex h-full items-center justify-center text-gray-400 italic">
+                    <div className="flex h-full items-center justify-center text-nm-steel italic">
                         No nodes provided — add keywords above
                     </div>
                 ) : (
                     <svg
                         width={dimensions.width}
                         height={dimensions.height}
-                        className="cursor-crosshair"
+                        className="cursor-crosshair text-nm-steel"
                         onClick={handleSvgClick}
                     >
                         {graphEdges.map((edge) => {
@@ -256,7 +272,11 @@ export function MindMapCanvas({
                             const target = graphNodes.find(
                                 (n) => n.id === edge.target,
                             );
-                            if (!source || !target) return null;
+
+                            if (!source || !target) {
+return null;
+}
+
                             const sx =
                                 (source.x || 0) + (source.width || NODE_W) / 2;
                             const sy =
@@ -265,6 +285,7 @@ export function MindMapCanvas({
                                 (target.x || 0) + (target.width || NODE_W) / 2;
                             const ty =
                                 (target.y || 0) + (target.height || NODE_H) / 2;
+
                             return (
                                 <line
                                     key={edge.id}
@@ -272,7 +293,7 @@ export function MindMapCanvas({
                                     y1={sy}
                                     x2={tx}
                                     y2={ty}
-                                    stroke="#94a3b8"
+                                    stroke="currentColor"
                                     strokeWidth={2}
                                 />
                             );
@@ -280,6 +301,7 @@ export function MindMapCanvas({
 
                         {graphNodes.map((node) => {
                             const isEditing = editingId === node.id;
+
                             return (
                                 <g
                                     key={node.id}
@@ -291,16 +313,16 @@ export function MindMapCanvas({
                                         rx={8}
                                         fill={
                                             node.id === rootId
-                                                ? '#0ea5e0'
+                                                ? 'var(--nm-cyan)'
                                                 : '#ffffff'
                                         }
                                         stroke={
                                             node.id === rootId
-                                                ? '#0287ca'
-                                                : '#d1d5db'
+                                                ? 'var(--nm-cyan)'
+                                                : 'var(--nm-grid)'
                                         }
                                         strokeWidth={2}
-                                        className="dark:border-slate-700 dark:bg-slate-950"
+                                        className="dark:border-nm-grid dark:bg-nm-paper-dark"
                                     />
                                     {isEditing ? (
                                         <foreignObject
@@ -316,10 +338,13 @@ export function MindMapCanvas({
                                                     setEditText(e.target.value)
                                                 }
                                                 onKeyDown={(e) => {
-                                                    if (e.key === 'Enter')
-                                                        commitEdit(node.id);
-                                                    if (e.key === 'Escape')
-                                                        setEditingId(null);
+                                                    if (e.key === 'Enter') {
+commitEdit(node.id);
+}
+
+                                                    if (e.key === 'Escape') {
+setEditingId(null);
+}
                                                 }}
                                                 className="h-6 text-sm"
                                             />
@@ -332,14 +357,14 @@ export function MindMapCanvas({
                                             fill={
                                                 node.id === rootId
                                                     ? '#ffffff'
-                                                    : '#1e293b'
+                                                    : 'var(--nm-ink)'
                                             }
                                             fontSize={14}
                                             cursor="pointer"
                                             onDoubleClick={() =>
                                                 handleDoubleClick(node)
                                             }
-                                            className="dark:fill-gray-200"
+                                            className="fill-nm-paper"
                                         >
                                             {node.label}
                                         </text>
@@ -355,7 +380,7 @@ export function MindMapCanvas({
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-5 w-5 text-red-600"
+                                                className="h-5 w-5 text-nm-magenta"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     handleRemove(node.id);
@@ -378,6 +403,7 @@ export function MindMapCanvas({
                     size="sm"
                     onClick={() =>
                         onAction?.('mindmap_confirm', {
+                            step: 'mindmap_confirm',
                             nodes: graphNodes,
                             edges: graphEdges,
                         })
@@ -399,8 +425,8 @@ interface PalettePickerProps extends DynamicComponentProps {
 
 export function PalettePicker({ id, initialColors = [] }: PalettePickerProps) {
     return (
-        <div className="border-l-4 border-l-green-500 p-6">
-            <h3 className="mb-4 text-lg font-semibold">
+        <div className="p-4">
+            <h3 className="mb-4 text-lg font-display font-semibold text-nm-amber dark:text-nm-amber">
                 Color Palette Generator
             </h3>
             <div className="flex gap-4">
@@ -414,7 +440,7 @@ export function PalettePicker({ id, initialColors = [] }: PalettePickerProps) {
                     </div>
                 ))}
                 {initialColors.length === 0 && (
-                    <div className="text-gray-400 italic">
+                    <div className="text-muted-foreground italic">
                         Generate a palette...
                     </div>
                 )}
@@ -435,19 +461,19 @@ export function GeometricConstructor({
     mode = 'Beginner',
 }: GeometricProps) {
     return (
-        <div className="border-l-4 border-l-purple-500 p-6">
+        <div className="p-4">
             <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Geometric Constructor</h3>
-                <span className="rounded bg-purple-100 px-2 py-1 font-mono text-xs text-purple-800">
+                <h3 className="text-lg font-display font-semibold text-nm-amber dark:text-nm-amber">Geometric Constructor</h3>
+                <span className="rounded bg-nm-steel/10 px-2 py-1 font-mono text-xs text-nm-steel">
                     Mode: {mode}
                 </span>
             </div>
-            <div className="bg-grid-slate-100 dark:bg-grid-slate-900 flex aspect-video items-center justify-center rounded border">
+            <div className="bg-nm-steel/10 dark:bg-nm-paper-dark flex aspect-video items-center justify-center rounded border">
                 <div className="text-center">
                     <p className="text-sm text-muted-foreground">
                         [Rust/WASM Sketch Engine Mounting Point]
                     </p>
-                    <p className="mt-2 text-xs text-slate-400">
+                    <p className="mt-2 text-xs text-muted-foreground">
                         Awaiting WASM module initialization...
                     </p>
                 </div>
@@ -470,15 +496,15 @@ export function ReviewView({
     directions = [],
 }: ReviewViewProps) {
     return (
-        <div className="border-l-4 border-l-orange-500 p-6">
-            <h3 className="mb-4 text-lg font-semibold">{title}</h3>
+        <div className="p-4">
+            <h3 className="mb-4 text-lg font-display font-semibold text-nm-steel dark:text-nm-steel">{title}</h3>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {directions.map((direction, i) => (
                     <div
                         key={i}
-                        className="rounded-lg border bg-slate-50 p-4 dark:bg-slate-900"
+                        className="rounded-lg border border-nm-grid bg-nm-paper dark:bg-nm-paper-dark p-4"
                     >
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-muted-foreground">
                             Direction {i + 1}
                         </p>
                         <pre className="mt-2 max-h-40 overflow-auto text-xs">
@@ -487,7 +513,7 @@ export function ReviewView({
                     </div>
                 ))}
                 {directions.length === 0 && (
-                    <div className="col-span-full text-gray-400 italic">
+                    <div className="col-span-full text-muted-foreground italic">
                         No directions provided
                     </div>
                 )}
@@ -505,24 +531,24 @@ interface GuidelinePreviewProps extends DynamicComponentProps {
 
 export function GuidelinePreview({ id, sections = [] }: GuidelinePreviewProps) {
     return (
-        <div className="border-l-4 border-l-emerald-500 p-6">
-            <h3 className="mb-4 text-lg font-semibold">Brand Guidelines</h3>
+        <div className="p-4">
+            <h3 className="mb-4 text-lg font-display font-semibold text-nm-steel dark:text-nm-steel">Brand Guidelines</h3>
             <div className="space-y-4">
                 {sections.map((section, i) => (
                     <div
                         key={i}
-                        className="rounded-lg border bg-slate-50 p-4 dark:bg-slate-900"
+                        className="rounded-lg border border-nm-grid bg-nm-paper dark:bg-nm-paper-dark p-4"
                     >
                         <h4 className="font-medium">
                             {section.title || `Section ${i + 1}`}
                         </h4>
-                        <p className="mt-1 text-sm text-gray-500">
+                        <p className="mt-1 text-sm text-muted-foreground">
                             {section.content || 'No content provided'}
                         </p>
                     </div>
                 ))}
                 {sections.length === 0 && (
-                    <div className="text-gray-400 italic">
+                    <div className="text-muted-foreground italic">
                         No guideline sections provided
                     </div>
                 )}
