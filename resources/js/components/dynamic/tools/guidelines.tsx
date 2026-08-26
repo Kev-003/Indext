@@ -15,7 +15,7 @@ interface BrandGuidelineDocumentProps extends DynamicComponentProps {
     readonly?: boolean;
 }
 
-export function BrandGuidelineDocument({ id, brandId, sections = ['logo', 'color', 'typography', 'assets', 'future'], readonly = false }: BrandGuidelineDocumentProps) {
+export function BrandGuidelineDocument({ id, onAction, brandId, sections = ['logo', 'color', 'typography', 'assets', 'future'], readonly = false }: BrandGuidelineDocumentProps) {
     const [activeSection, setActiveSection] = useState(sections[0]);
 
     const renderSection = () => {
@@ -66,9 +66,18 @@ export function BrandGuidelineDocument({ id, brandId, sections = ['logo', 'color
                 <h3 className="text-lg font-semibold">Brand Guidelines</h3>
                 <div className="flex gap-2">
                     {!readonly && (
-                        <Button variant="outline" size="sm">Regenerate Section</Button>
+                        <Button variant="outline" size="sm" onClick={() => onAction?.('complete_step', {
+                            step: 'guideline_regenerate',
+                            brandId,
+                            section: activeSection,
+                        })}>Regenerate Section</Button>
                     )}
-                    <Button size="sm">Export PDF</Button>
+                    <Button size="sm" onClick={() => onAction?.('complete_step', {
+                        step: 'guideline_export',
+                        brandId,
+                        format: 'pdf',
+                        section: activeSection,
+                    })}>Export PDF</Button>
                 </div>
             </div>
 
@@ -350,7 +359,7 @@ interface DevHandoffPackageProps extends DynamicComponentProps {
     touchpoints?: string[];
 }
 
-export function DevHandoffPackage({ id, brandId, tokens = {}, assets = [], touchpoints = ['web', 'mobile', 'print', 'packaging'] }: DevHandoffPackageProps) {
+export function DevHandoffPackage({ id, onAction, brandId, tokens = {}, assets = [], touchpoints = ['web', 'mobile', 'print', 'packaging'] }: DevHandoffPackageProps) {
     const [selectedExports, setSelectedExports] = useState<string[]>(['svg', 'png']);
 
     const toggleExport = (format: string) => {
@@ -418,10 +427,26 @@ export function DevHandoffPackage({ id, brandId, tokens = {}, assets = [], touch
             </div>
 
             <div className="flex justify-between">
-                <Button variant="outline" onClick={() => {/* AI would package assets */}}>
+                <Button variant="outline" onClick={() => onAction?.('complete_step', {
+                    step: 'dev_handoff',
+                    brandId,
+                    action: 'package_assets',
+                    exports: selectedExports,
+                    tokens,
+                    assets,
+                    touchpoints,
+                })}>
                     Package Assets
                 </Button>
-                <Button onClick={() => {/* AI would finalize handoff */}}>
+                <Button onClick={() => onAction?.('complete_step', {
+                    step: 'dev_handoff',
+                    brandId,
+                    action: 'approve_handoff',
+                    exports: selectedExports,
+                    tokens,
+                    assets,
+                    touchpoints,
+                })}>
                     Approve Handoff
                 </Button>
             </div>

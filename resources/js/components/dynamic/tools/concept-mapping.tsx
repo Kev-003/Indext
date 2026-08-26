@@ -16,7 +16,7 @@ interface KeywordMindMapProps extends DynamicComponentProps {
     layout?: 'radial' | 'tree';
 }
 
-export function KeywordMindMap({ id, rootNode = 'Brand', keywords = [], layout = 'radial' }: KeywordMindMapProps) {
+export function KeywordMindMap({ id, onAction, rootNode = 'Brand', keywords = [], layout = 'radial' }: KeywordMindMapProps) {
     const [nodes, setNodes] = useState<string[]>(keywords);
     const [newNode, setNewNode] = useState('');
 
@@ -74,6 +74,22 @@ export function KeywordMindMap({ id, rootNode = 'Brand', keywords = [], layout =
                 />
                 <Button onClick={addNode}>Add</Button>
             </div>
+
+            <div className="flex justify-end pt-4">
+                <Button
+                    variant="default"
+                    onClick={() => {
+                        onAction?.('complete_step', {
+                            step: 'keyword_mindmap',
+                            rootNode,
+                            keywords: nodes,
+                        });
+                    }}
+                    disabled={nodes.length === 0}
+                >
+                    Confirm Keywords
+                </Button>
+            </div>
         </div>
     );
 }
@@ -88,7 +104,7 @@ interface SemanticObjectMapperProps extends DynamicComponentProps {
     mode?: 'tangible' | 'abstract';
 }
 
-export function SemanticObjectMapper({ id, keyword = 'Growth', suggestions = [], mode = 'tangible' }: SemanticObjectMapperProps) {
+export function SemanticObjectMapper({ id, onAction, keyword = 'Growth', suggestions = [], mode = 'tangible' }: SemanticObjectMapperProps) {
     const [selected, setSelected] = useState<string | null>(null);
     const [customObject, setCustomObject] = useState('');
 
@@ -132,13 +148,27 @@ export function SemanticObjectMapper({ id, keyword = 'Growth', suggestions = [],
                     onChange={(e) => setCustomObject(e.target.value)}
                     placeholder="Add custom object..."
                 />
-                <Button onClick={() => {/* AI would validate and add */}}>Add</Button>
+                <Button onClick={() => onAction?.('complete_step', {
+                    step: 'semantic_mapper',
+                    action: 'add_abstract',
+                    keyword,
+                    customObject,
+                })}>Add</Button>
             </div>
 
             {selected && (
                 <div className="flex justify-end">
-                    <Button onClick={() => {/* AI would save mapping */}}>
-                        Save Mapping: {selected}
+                    <Button
+                        onClick={() => {
+                            onAction?.('complete_step', {
+                                step: 'semantic_mapper',
+                                keyword,
+                                mapping: selected,
+                            });
+                        }}
+                        disabled={!selected}
+                    >
+                        Save & Continue
                     </Button>
                 </div>
             )}
@@ -151,8 +181,10 @@ export function SemanticObjectMapper({ id, keyword = 'Growth', suggestions = [],
 // ---------------------------------------------------------
 interface Concept {
     id: string;
-    name: string;
+    name?: string;
+    title?: string;
     mood?: string;
+    description?: string;
     colors?: string[];
     typography?: string;
 }
@@ -160,10 +192,25 @@ interface Concept {
 interface DesignConceptExplorerProps extends DynamicComponentProps {
     brandId?: number;
     concepts?: Concept[];
+    completed?: boolean;
+    result?: Record<string, any>;
 }
 
-export function DesignConceptExplorer({ id, concepts = [] }: DesignConceptExplorerProps) {
+export function DesignConceptExplorer({ id, onAction, concepts = [], completed, result }: DesignConceptExplorerProps) {
     const [selectedConcept, setSelectedConcept] = useState<string | null>(null);
+
+    if (completed) {
+        const conceptName = result?.concept?.title ?? result?.concept?.name ?? result?.selected_concept_id ?? 'concept';
+        return (
+            <div className="p-6 border-l-4 border-l-amber-500">
+                <h3 className="text-lg font-semibold mb-3">Design Concept Explorer</h3>
+                <div className="flex items-center gap-2 rounded border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300">
+                    <span className="text-base">✓</span>
+                    <span>Selected concept: {conceptName}</span>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="p-6 border-l-4 border-l-amber-500">
@@ -180,45 +227,77 @@ export function DesignConceptExplorer({ id, concepts = [] }: DesignConceptExplor
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {concepts.map((concept) => (
-                        <Card
-                            key={concept.id}
-                            className={`cursor-pointer transition hover:shadow-md ${selectedConcept === concept.id ? 'ring-2 ring-amber-500' : ''}`}
-                            onClick={() => setSelectedConcept(concept.id)}
-                        >
-                            <CardHeader className="p-4 pb-2">
-                                <CardTitle className="text-base">{concept.name}</CardTitle>
-                                {concept.mood && (
-                                    <CardDescription className="text-xs">{concept.mood}</CardDescription>
-                                )}
-                            </CardHeader>
-                            <CardContent className="p-4 pt-0">
-                                {concept.colors && concept.colors.length > 0 && (
-                                    <div className="flex gap-1 mb-2">
-                                        {concept.colors.map((color, i) => (
-                                            <div
-                                                key={i}
-                                                className="w-6 h-6 rounded border"
-                                                style={{ backgroundColor: color }}
-                                                title={color}
-                                            />
-                                        ))}
+                    {concepts.map((concept, idx) => {
+                        const conceptId = concept.id || `concept-${idx}`;
+                        const conceptTitle = concept.title || concept.name || `Direction ${idx + 1}`;
+                        const conceptDesc = concept.mood || concept.description || '';
+                        const isSelected = selectedConcept === conceptId;
+
+                        return (
+                            <Card
+                                key={conceptId}
+                                className={`cursor-pointer transition hover:shadow-md ${isSelected ? 'ring-2 ring-amber-500' : ''}`}
+                                onClick={() => setSelectedConcept(conceptId)}
+                            >
+                                <CardHeader className="p-4 pb-2">
+                                    <CardTitle className="text-base">{conceptTitle}</CardTitle>
+                                    {conceptDesc && (
+                                        <CardDescription className="text-xs">{conceptDesc}</CardDescription>
+                                    )}
+                                </CardHeader>
+                                <CardContent className="p-4 pt-0">
+                                    {concept.colors && concept.colors.length > 0 && (
+                                        <div className="flex gap-1 mb-2">
+                                            {concept.colors.map((color, i) => (
+                                                <div
+                                                    key={i}
+                                                    className="w-6 h-6 rounded border"
+                                                    style={{ backgroundColor: color }}
+                                                    title={color}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
+                                    {concept.typography && (
+                                        <p className="text-xs text-muted-foreground">Typography: {concept.typography}</p>
+                                    )}
+                                    <div className="flex gap-2 mt-3">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="flex-1"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onAction?.('complete_step', {
+                                                    step: 'concept_explorer',
+                                                    action: 'refine',
+                                                    concept,
+                                                });
+                                            }}
+                                        >
+                                            Refine
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            className="flex-1"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSelectedConcept(conceptId);
+                                                onAction?.('complete_step', {
+                                                    step: 'concept_explorer',
+                                                    action: 'select_concept',
+                                                    concept,
+                                                    selected_concept_id: conceptId,
+                                                });
+                                            }}
+                                        >
+                                            Select
+                                        </Button>
                                     </div>
-                                )}
-                                {concept.typography && (
-                                    <p className="text-xs text-muted-foreground">Typography: {concept.typography}</p>
-                                )}
-                                <div className="flex gap-2 mt-3">
-                                    <Button size="sm" variant="outline" className="flex-1">
-                                        Refine
-                                    </Button>
-                                    <Button size="sm" className="flex-1">
-                                        Select
-                                    </Button>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
+                                </CardContent>
+                            </Card>
+                        );
+                    })}
                 </div>
             )}
         </div>

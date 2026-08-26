@@ -9,6 +9,10 @@ export interface Message {
         name: string;
         arguments: Record<string, any>;
     }>;
+    tool_results?: Array<{
+        tool_call_id: string;
+        result: Record<string, any>;
+    }>;
     created_at: string;
 }
 
@@ -24,6 +28,7 @@ export interface ChatState {
     error: string | null;
     activeConversationId: string | number | null;
     sendMessage: (prompt: string, brandId: string | number, conversationId?: string | number) => Promise<void>;
+    retryLastMessage: () => Promise<void>;
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
 }
 
@@ -33,6 +38,10 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
     const [error, setError] = useState<string | null>(null);
     const [activeConversationId, setActiveConversationId] = useState<string | number | null>(initialConversationId ?? null);
     const abortControllerRef = useRef<AbortController | null>(null);
+    const lastPromptRef = useRef<string | null>(null);
+    const lastBrandIdRef = useRef<string | number | null>(null);
+    const lastConversationIdRef = useRef<string | number | null>(null);
+    const lastAssistantMessageIdRef = useRef<string | null>(null);
 
     const sendMessage = useCallback(async (
         prompt: string,
@@ -48,16 +57,46 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
         const controller = new AbortController();
         abortControllerRef.current = controller;
 
+        // Build a human-readable display label for system-generated prompts
+        // so the user doesn't see raw JSON in the chat. The actual prompt sent
+        // to the API is unchanged (we only prettify what's shown in the UI).
+        const displayContent = (() => {
+            if (prompt.startsWith('STEP_COMPLETE ')) {
+                try {
+                    const data = JSON.parse(prompt.slice('STEP_COMPLETE '.length));
+                    const step = data.step
+                        ? data.step.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+                        : 'Step';
+                    if (data.action === 'select_concept' && (data.concept?.title || data.concept?.name)) {
+                        return `✓ Selected concept: ${data.concept.title ?? data.concept.name}`;
+                    }
+                    if (data.action === 'refine' && (data.concept?.title || data.concept?.name)) {
+                        return `↺ Refine concept: ${data.concept.title ?? data.concept.name}`;
+                    }
+                    if (data.palette) {
+                        return `✓ Confirmed ${step} palette`;
+                    }
+                    return `✓ Completed: ${step}`;
+                } catch {
+                    return '✓ Step completed';
+                }
+            }
+            if (prompt.startsWith('INTERVIEW_COMPLETE ')) {
+                return '✓ Interview submitted';
+            }
+            return prompt;
+        })();
+
         const userMessage: Message = {
             id: `user_${Date.now()}`,
             role: 'user',
-            content: prompt,
+            content: displayContent,
             created_at: new Date().toISOString(),
         };
 
         setMessages((prev) => {
             const last = prev[prev.length - 1];
-            if (last && last.role === 'user' && last.content === prompt) {
+            if (last && last.role === 'user' && last.content === displayContent) {
                 return prev;
             }
             return [...prev, userMessage];
@@ -73,6 +112,11 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
         };
 
         setMessages((prev) => [...prev, assistantMessage]);
+
+        lastPromptRef.current = prompt;
+        lastBrandIdRef.current = brandId;
+        lastConversationIdRef.current = conversationId ?? null;
+        lastAssistantMessageIdRef.current = assistantMessageId;
 
         try {
             const url = new URL(`/api/brands/${brandId}/chat/message`, window.location.origin);
@@ -160,15 +204,19 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
                         }
 
                         if (parsed.id && parsed.name && parsed.arguments) {
-                            const existing = toolCalls.find((t) => t.id === parsed.id);
+                            let existing = toolCalls.find((t) => t.id === parsed.id);
                             if (!existing) {
+                                existing = toolCalls.find((t) => t.name === parsed.name);
+                            }
+                            if (existing) {
+                                existing.arguments = { ...existing.arguments, ...parsed.arguments };
+                                existing.id = parsed.id;
+                            } else {
                                 toolCalls.push({
                                     id: parsed.id,
                                     name: parsed.name,
                                     arguments: parsed.arguments,
                                 });
-                            } else {
-                                existing.arguments = { ...existing.arguments, ...parsed.arguments };
                             }
 
                             setMessages((prev) =>
@@ -190,6 +238,17 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
                     }
                 }
             }
+
+            if (accumulatedContent === '' && toolCalls.length === 0) {
+                setMessages((prev) =>
+                    prev.map((m) =>
+                        m.id === assistantMessageId
+                            ? { ...m, content: 'No response received from AI. The response may have timed out or been empty.' }
+                            : m,
+                    ),
+                );
+                setError('No response received from AI. Try again or rephrase your message.');
+            }
         } catch (err: any) {
             if (err.name !== 'AbortError') {
                 setError(err.message || 'Failed to send message');
@@ -205,6 +264,20 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
         }
     }, []);
 
+    const retryLastMessage = useCallback(async () => {
+        const prompt = lastPromptRef.current;
+        const brandId = lastBrandIdRef.current;
+        const conversationId = lastConversationIdRef.current;
+        const assistantMessageId = lastAssistantMessageIdRef.current;
+
+        if (!prompt || !brandId) return;
+
+        setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId));
+        setError(null);
+
+        await sendMessage(prompt, brandId, conversationId ?? undefined);
+    }, [sendMessage]);
+
     useEffect(() => {
         return () => {
             if (abortControllerRef.current) {
@@ -213,5 +286,5 @@ export function useChatStream(initialMessages: Message[] = [], initialConversati
         };
     }, []);
 
-    return { messages, isStreaming, error, activeConversationId, sendMessage, setMessages };
+    return { messages, isStreaming, error, activeConversationId, sendMessage, retryLastMessage, setMessages };
 }

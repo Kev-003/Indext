@@ -42,9 +42,8 @@ class BrandDeletionTest extends TestCase
         $response->assertStatus(200)
             ->assertJson(['success' => true]);
 
-        $this->assertDatabaseMissing('brands', [
+        $this->assertSoftDeleted('brands', [
             'id' => $brand->id,
-            'team_id' => $team->id,
         ]);
     }
 
@@ -75,7 +74,7 @@ class BrandDeletionTest extends TestCase
         $response->assertStatus(200)
             ->assertJson(['success' => true]);
 
-        $this->assertDatabaseMissing('brands', ['id' => $brand->id]);
+        $this->assertSoftDeleted('brands', ['id' => $brand->id]);
         $this->assertDatabaseMissing('conversations', ['id' => $conversation->id]);
     }
 
@@ -115,7 +114,7 @@ class BrandDeletionTest extends TestCase
         $response->assertStatus(200)
             ->assertJson(['success' => true]);
 
-        $this->assertDatabaseMissing('brands', ['id' => $brand->id]);
+        $this->assertSoftDeleted('brands', ['id' => $brand->id]);
         $this->assertDatabaseMissing('brand_assets', ['id' => $asset->id]);
         $this->assertDatabaseMissing('brand_guidelines', ['id' => $guideline->id]);
     }
@@ -204,7 +203,7 @@ class BrandDeletionTest extends TestCase
         $response->assertStatus(200)
             ->assertJson(['success' => true]);
 
-        $this->assertDatabaseMissing('brands', ['id' => $brand->id]);
+        $this->assertSoftDeleted('brands', ['id' => $brand->id]);
         $this->assertDatabaseMissing('conversations', [
             'brand_id' => $brand->id,
             'agent_conversation_id' => null,

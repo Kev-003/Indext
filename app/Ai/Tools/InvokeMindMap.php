@@ -25,6 +25,18 @@ class InvokeMindMap implements Tool
             'id' => $schema->string()->description('Unique component instance ID.')->required(),
             'title' => $schema->string()->description('Title for the mind map.')->required(),
             'nodes' => $schema->array()->description('Keyword nodes to display.')->items($schema->string())->required(),
+            'layout' => $schema->string()->description('Layout direction: radial or horizontal tree.')->enum(array(
+                0 => 'radial',
+                1 => 'horizontal',
+                2 => 'vertical',
+            ))->default('radial'),
+            'edges' => $schema->array()->description('Optional graph edges between nodes.')->items(
+                $schema->object([
+                    'id' => $schema->string()->description('Unique edge identifier.'),
+                    'source' => $schema->string()->description('Source node label.')->required(),
+                    'target' => $schema->string()->description('Target node label.')->required(),
+                ])
+            ),
         ];
     }
 }

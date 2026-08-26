@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DynamicComponentProps } from '../registry';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,14 +10,34 @@ interface MoodboardComposerProps extends DynamicComponentProps {
     brandId?: number;
     initialAssets?: Array<{ id: string; url: string; type: string }>;
     layout?: 'grid' | 'freeform';
-    suggestedPalette?: Array<{ role: string; hex: string }>;
+    suggestedPalette?: Array<{ role?: string; name?: string; hex?: string; color?: string }>;
     exportFormats?: string[];
 }
 
-export function MoodboardComposer({ id, initialAssets = [], layout = 'grid', suggestedPalette = [] }: MoodboardComposerProps) {
+const normalizeMoodboardPalette = (palette: any[]) => {
+    if (!palette || !Array.isArray(palette)) return [];
+    return palette.map((c) => ({
+        role: c.role || c.name || 'accent',
+        hex: c.hex || c.color || '#9ca3af',
+    }));
+};
+
+export function MoodboardComposer({ id, onAction, brandId, initialAssets = [], layout = 'grid', suggestedPalette = [], ...rest }: MoodboardComposerProps) {
     const [assets, setAssets] = useState(initialAssets);
-    const [palette, setPalette] = useState(suggestedPalette);
+    const [palette, setPalette] = useState(() => normalizeMoodboardPalette(suggestedPalette));
     const [columns, setColumns] = useState([3]);
+
+    useEffect(() => {
+        if (initialAssets && initialAssets.length > 0) {
+            setAssets(initialAssets);
+        }
+    }, [initialAssets]);
+
+    useEffect(() => {
+        if (suggestedPalette && suggestedPalette.length > 0) {
+            setPalette(normalizeMoodboardPalette(suggestedPalette));
+        }
+    }, [suggestedPalette]);
 
     const addAsset = () => {
         setAssets([...assets, {
@@ -62,9 +82,13 @@ export function MoodboardComposer({ id, initialAssets = [], layout = 'grid', sug
                     <Button variant="outline" size="sm" onClick={addAsset}>
                         Add Asset
                     </Button>
-                    <Button size="sm" onClick={() => {/* AI would save moodboard */}}>
-                        Save Moodboard
-                    </Button>
+                    <Button size="sm" onClick={() => onAction?.('complete_step', {
+                        step: 'moodboard',
+                        brandId,
+                        assets,
+                        palette,
+                        layout,
+                    })}>Save Moodboard</Button>
                 </div>
             </div>
 
@@ -75,12 +99,12 @@ export function MoodboardComposer({ id, initialAssets = [], layout = 'grid', sug
 
             <div className={`grid gap-3 mb-6 ${layout === 'freeform' ? 'grid-cols-2 md:grid-cols-3' : `grid-cols-${columns[0]}`}`}>
                 {assets.map((asset, i) => (
-                    <Card key={asset.id} className="relative group">
-                        <CardContent className="p-3">
+                    <Card key={asset.id} className="relative group max-w-[100px]">
+                        <CardContent className="p-2">
                             {asset.url ? (
-                                <img src={asset.url} alt="" className="w-full aspect-square object-cover rounded mb-2" />
+                                <img src={asset.url} alt="" className="w-full aspect-square object-cover rounded mb-1" />
                             ) : (
-                                <div className="w-full aspect-square bg-gray-100 dark:bg-gray-800 rounded mb-2 flex items-center justify-center text-gray-400 text-xs">
+                                <div className="w-full aspect-square bg-gray-100 dark:bg-gray-800 rounded mb-1 flex items-center justify-center text-gray-400 text-xs">
                                     No asset
                                 </div>
                             )}
@@ -88,12 +112,12 @@ export function MoodboardComposer({ id, initialAssets = [], layout = 'grid', sug
                                 value={asset.url}
                                 onChange={(e) => updateAsset(i, 'url', e.target.value)}
                                 placeholder="Asset URL"
-                                className="text-xs mb-1"
+                                className="text-xs mb-1 h-6"
                             />
                             <select
                                 value={asset.type}
                                 onChange={(e) => updateAsset(i, 'type', e.target.value)}
-                                className="w-full text-xs border rounded p-1"
+                                className="w-full text-xs border rounded p-1 dark:text-gray-200 dark:border-gray-600 dark:bg-gray-900"
                             >
                                 <option value="image">Image</option>
                                 <option value="texture">Texture</option>
@@ -102,7 +126,7 @@ export function MoodboardComposer({ id, initialAssets = [], layout = 'grid', sug
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-6 w-6 text-red-600 absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition"
+                                className="h-5 w-5 text-red-600 absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition"
                                 onClick={() => removeAsset(i)}
                             >
                                 ×
@@ -126,12 +150,15 @@ export function MoodboardComposer({ id, initialAssets = [], layout = 'grid', sug
                     </Button>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                    {palette.length === 0 && (
+                        <div className="text-gray-400 italic text-sm">No colors suggested yet. Add colors or ask the AI for a palette.</div>
+                    )}
                     {palette.map((color, i) => (
                         <Card key={i} className="relative p-2">
                             <CardContent className="p-2 flex items-center gap-2">
                                 <div
                                     className="w-8 h-8 rounded border"
-                                    style={{ backgroundColor: color.hex }}
+                                    style={{ backgroundColor: color.hex || '#9ca3af' }}
                                 />
                                 <div className="space-y-1">
                                     <Input
@@ -139,10 +166,10 @@ export function MoodboardComposer({ id, initialAssets = [], layout = 'grid', sug
                                         onChange={(e) => updateColor(i, 'hex', e.target.value)}
                                         className="text-xs font-mono w-24"
                                     />
-                                    <select
+                                 <select
                                         value={color.role}
                                         onChange={(e) => updateColor(i, 'role', e.target.value)}
-                                        className="text-xs border rounded p-1 w-24"
+                                        className="text-xs border rounded p-1 w-24 dark:text-gray-200 dark:border-gray-600 dark:bg-gray-900"
                                     >
                                         <option value="primary">Primary</option>
                                         <option value="secondary">Secondary</option>

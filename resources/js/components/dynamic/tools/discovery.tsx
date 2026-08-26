@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
+import { CheckCircle2, Circle } from 'lucide-react';
 
 // ---------------------------------------------------------
 // 1.1 ClientInterviewWizard
@@ -13,15 +14,20 @@ interface ClientInterviewWizardProps extends DynamicComponentProps {
     sessionId?: string;
     stage?: 'business' | 'mission' | 'audience' | 'tone';
     prefilled?: Record<string, any>;
+    completed?: boolean;
+    result?: Record<string, any>;
 }
 
-export function ClientInterviewWizard({ id, stage = 'business', prefilled = {} }: ClientInterviewWizardProps) {
+export function ClientInterviewWizard({ id, onAction, stage = 'business', prefilled = {}, completed, result }: ClientInterviewWizardProps) {
     const [formData, setFormData] = useState({
         businessName: prefilled.businessName || '',
         mission: prefilled.mission || '',
         audience: prefilled.audience || '',
         tone: prefilled.tone || 'professional',
     });
+    const [currentStage, setCurrentStage] = useState(stage);
+    const [submitted, setSubmitted] = useState(completed ?? false);
+    const [customToneInput, setCustomToneInput] = useState('');
 
     const stages: Array<{ key: typeof stage; label: string }> = [
         { key: 'business', label: 'Business' },
@@ -29,6 +35,101 @@ export function ClientInterviewWizard({ id, stage = 'business', prefilled = {} }
         { key: 'audience', label: 'Audience' },
         { key: 'tone', label: 'Tone' },
     ];
+
+    const isStageComplete = (s: typeof stage): boolean => {
+        switch (s) {
+            case 'business':
+                return formData.businessName.trim().length > 0;
+            case 'mission':
+                return formData.mission.trim().length > 0;
+            case 'audience':
+                return formData.audience.trim().length > 0;
+            case 'tone':
+                return formData.tone.trim().length > 0;
+            default:
+                return false;
+        }
+    };
+
+    const incompleteStages = stages.filter((s) => !isStageComplete(s.key));
+    const isAllComplete = incompleteStages.length === 0;
+
+    const toneOptions = [
+        'professional', 'friendly', 'sophisticated', 'playful', 'quirky',
+        'bold', 'confident', 'minimal', 'modern', 'classic', 'rustic',
+        'luxury', 'accessible', 'serious', 'casual', 'vintage',
+        'contemporary', 'edgy', 'authentic', 'refined',
+    ];
+
+    const selectedTones = formData.tone
+        .split(',')
+        .map((t: string) => t.trim())
+        .filter(Boolean);
+
+    const toggleTone = (t: string) => {
+        const tones = selectedTones.includes(t)
+            ? selectedTones.filter((x: string) => x !== t)
+            : [...selectedTones, t];
+        setFormData({ ...formData, tone: tones.join(', ') });
+    };
+
+    const addCustomTone = () => {
+        const custom = customToneInput.trim();
+        if (custom && !selectedTones.includes(custom)) {
+            setFormData({ ...formData, tone: [...selectedTones, custom].join(', ') });
+        }
+        setCustomToneInput('');
+    };
+
+    const removeTone = (t: string) => {
+        setFormData({ ...formData, tone: selectedTones.filter((x: string) => x !== t).join(', ') });
+    };
+
+    if (submitted) {
+        return (
+            <div className="p-6 border-l-4 border-l-green-500">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold text-green-700">
+                        Interview Complete
+                    </h3>
+                    <span className="text-xs font-mono bg-green-100 text-green-800 px-2 py-1 rounded">
+                        Submitted
+                    </span>
+                </div>
+
+                <div className="mt-4 space-y-3 text-sm">
+                    <div>
+                        <span className="font-medium text-gray-600 dark:text-gray-400">Business:</span>
+                        <span className="ml-2 text-gray-800 dark:text-gray-200">
+                            {formData.businessName}
+                        </span>
+                    </div>
+                    <div>
+                        <span className="font-medium text-gray-600 dark:text-gray-400">Mission:</span>
+                        <p className="ml-2 mt-1 text-gray-800 dark:text-gray-200">
+                            {formData.mission}
+                        </p>
+                    </div>
+                    <div>
+                        <span className="font-medium text-gray-600 dark:text-gray-400">Audience:</span>
+                        <p className="ml-2 mt-1 text-gray-800 dark:text-gray-200">
+                            {formData.audience}
+                        </p>
+                    </div>
+                    <div>
+                        <span className="font-medium text-gray-600 dark:text-gray-400">Tone:</span>
+                        <span className="ml-2 text-gray-800 dark:text-gray-200">
+                            {formData.tone}
+                        </span>
+                    </div>
+                </div>
+
+                <p className="mt-4 text-xs text-muted-foreground">
+                    Your brand director is processing your interview...
+                </p>
+            </div>
+        );
+    }
 
     return (
         <div className="p-6 border-l-4 border-l-blue-500">
@@ -40,20 +141,25 @@ export function ClientInterviewWizard({ id, stage = 'business', prefilled = {} }
             </div>
 
             <div className="flex gap-2 mb-6">
-                {stages.map((s) => (
-                    <Button
-                        key={s.key}
-                        variant={stage === s.key ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => {/* AI would advance stage */}}
-                    >
-                        {s.label}
-                    </Button>
-                ))}
+                {stages.map((s) => {
+                    const complete = isStageComplete(s.key);
+                    return (
+                        <Button
+                            key={s.key}
+                            variant={currentStage === s.key ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setCurrentStage(s.key)}
+                        >
+                            {s.label}
+                            {complete && <CheckCircle2 className="ml-1 h-3 w-3" />}
+                            {!complete && <Circle className="ml-1 h-3 w-3 opacity-30" />}
+                        </Button>
+                    );
+                })}
             </div>
 
             <div className="space-y-4">
-                {stage === 'business' && (
+                {currentStage === 'business' && (
                     <div className="space-y-2">
                         <Label htmlFor={`${id}-business`}>Business Name / Industry</Label>
                         <Input
@@ -65,7 +171,7 @@ export function ClientInterviewWizard({ id, stage = 'business', prefilled = {} }
                     </div>
                 )}
 
-                {stage === 'mission' && (
+                {currentStage === 'mission' && (
                     <div className="space-y-2">
                         <Label htmlFor={`${id}-mission`}>Brand Mission</Label>
                         <Textarea
@@ -78,7 +184,7 @@ export function ClientInterviewWizard({ id, stage = 'business', prefilled = {} }
                     </div>
                 )}
 
-                {stage === 'audience' && (
+                {currentStage === 'audience' && (
                     <div className="space-y-2">
                         <Label htmlFor={`${id}-audience`}>Target Audience</Label>
                         <Textarea
@@ -91,27 +197,70 @@ export function ClientInterviewWizard({ id, stage = 'business', prefilled = {} }
                     </div>
                 )}
 
-                {stage === 'tone' && (
+                {currentStage === 'tone' && (
                     <div className="space-y-4">
-                        <Label>Tone of Voice</Label>
-                        <div className="flex gap-4">
-                            {['professional', 'playful', 'minimal', 'bold', 'warm'].map((t) => (
-                                <Button
-                                    key={t}
-                                    variant={formData.tone === t ? 'default' : 'outline'}
-                                    size="sm"
-                                    onClick={() => setFormData({ ...formData, tone: t })}
-                                >
-                                    {t}
-                                </Button>
-                            ))}
+                        <Label>Tone of Voice (select multiple or type custom)</Label>
+                        <div className="flex flex-wrap gap-2">
+                            {toneOptions.map((t) => {
+                                const selected = selectedTones.includes(t);
+                                return (
+                                    <Button
+                                        key={t}
+                                        variant={selected ? 'default' : 'outline'}
+                                        size="sm"
+                                        onClick={() => toggleTone(t)}
+                                    >
+                                        {t}
+                                    </Button>
+                                );
+                            })}
                         </div>
+                        <Input
+                            value={customToneInput}
+                            onChange={(e) => setCustomToneInput(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && addCustomTone()}
+                            placeholder="Add custom tone (press Enter)"
+                        />
+                        {selectedTones.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                                {selectedTones.map((t: string, i: number) => (
+                                    <span
+                                        key={i}
+                                        className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded"
+                                    >
+                                        {t}
+                                        <button
+                                            onClick={() => removeTone(t)}
+                                            className="ml-1 hover:text-blue-900"
+                                        >
+                                            ×
+                                        </button>
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 
-                <div className="flex justify-between pt-4">
-                    <Button variant="outline" disabled>Back</Button>
-                    <Button onClick={() => {/* AI would save and advance */}}>Continue</Button>
+                <div className="flex flex-col gap-2 pt-4">
+                    {!isAllComplete && (
+                        <div className="text-xs text-amber-600 dark:text-amber-400">
+                            Complete all sections to continue:{' '}
+                            {incompleteStages.map((s) => stages.find((st) => st.key === s.key)?.label).join(', ')}
+                        </div>
+                    )}
+                    <div className="flex justify-between">
+                        <Button variant="outline" disabled>Back</Button>
+                        <Button
+                            onClick={() => {
+                                setSubmitted(true);
+                                onAction?.('submit_interview', formData);
+                            }}
+                            disabled={!isAllComplete}
+                        >
+                            Continue
+                        </Button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -127,7 +276,7 @@ interface VisualPillarExtractorProps extends DynamicComponentProps {
     brandId?: number;
 }
 
-export function VisualPillarExtractor({ id, suggestedPillars = [], brandId }: VisualPillarExtractorProps) {
+export function VisualPillarExtractor({ id, onAction, suggestedPillars = [], brandId }: VisualPillarExtractorProps) {
     const [pillars, setPillars] = useState<string[]>(suggestedPillars);
     const [newPillar, setNewPillar] = useState('');
 
@@ -193,7 +342,11 @@ export function VisualPillarExtractor({ id, suggestedPillars = [], brandId }: Vi
             </div>
 
             <div className="flex justify-end">
-                <Button onClick={() => {/* AI would save pillars */}}>Confirm Pillars</Button>
+                <Button onClick={() => onAction?.('complete_step', {
+                    step: 'visual_pillars',
+                    brandId,
+                    pillars,
+                })}>Confirm Pillars</Button>
             </div>
         </div>
     );
@@ -207,7 +360,7 @@ interface BrandStrategyOverviewProps extends DynamicComponentProps {
     readonly?: boolean;
 }
 
-export function BrandStrategyOverview({ id, brandId, readonly = false }: BrandStrategyOverviewProps) {
+export function BrandStrategyOverview({ id, onAction, brandId, readonly = false }: BrandStrategyOverviewProps) {
     const [strategy, setStrategy] = useState({
         mission: 'Empower creative builders.',
         values: ['integrity', 'innovation', 'craftsmanship'],
@@ -289,9 +442,11 @@ export function BrandStrategyOverview({ id, brandId, readonly = false }: BrandSt
 
                 {!readonly && (
                     <div className="flex justify-end pt-4 border-t">
-                        <Button onClick={() => {/* AI would save strategy */}}>
-                            Save Strategy
-                        </Button>
+                        <Button onClick={() => onAction?.('complete_step', {
+                            step: 'brand_strategy',
+                            brandId,
+                            strategy,
+                        })}>Save Strategy</Button>
                     </div>
                 )}
             </div>

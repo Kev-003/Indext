@@ -16,7 +16,7 @@ interface TypographyPairingSelectorProps extends DynamicComponentProps {
     filters?: string[];
 }
 
-export function TypographyPairingSelector({ id, recommendedPairs = [], filters = ['serif', 'sans', 'geometric'] }: TypographyPairingSelectorProps) {
+export function TypographyPairingSelector({ id, onAction, recommendedPairs = [], filters = ['serif', 'sans', 'geometric'] }: TypographyPairingSelectorProps) {
     const [selectedPair, setSelectedPair] = useState<number | null>(null);
     const [headingSize, setHeadingSize] = useState([48]);
     const [bodySize, setBodySize] = useState([16]);
@@ -74,9 +74,15 @@ export function TypographyPairingSelector({ id, recommendedPairs = [], filters =
 
             {selectedPair !== null && (
                 <div className="flex justify-end">
-                    <Button onClick={() => {/* AI would save pairing */}}>
-                        Save Pairing
-                    </Button>
+                    <Button onClick={() => {
+                        const pair = recommendedPairs[selectedPair];
+                        onAction?.('complete_step', {
+                            step: 'typography_pairing',
+                            pair,
+                            headingSize: headingSize[0],
+                            bodySize: bodySize[0],
+                        });
+                    }}>Save Pairing</Button>
                 </div>
             )}
         </div>
@@ -88,13 +94,30 @@ export function TypographyPairingSelector({ id, recommendedPairs = [], filters =
 // ---------------------------------------------------------
 interface ColorHierarchyBuilderProps extends DynamicComponentProps {
     brandId?: number;
-    suggestedPalette?: Array<{ role: string; hex: string; cmyk?: number[] }>;
+    suggestedPalette?: Array<{ role?: string; name?: string; hex?: string; color?: string; cmyk?: number[] }>;
     mode?: 'digital' | 'print' | 'both';
 }
 
-export function ColorHierarchyBuilder({ id, suggestedPalette = [], mode = 'both' }: ColorHierarchyBuilderProps) {
-    const [colors, setColors] = useState<Array<{ role: string; hex: string; cmyk?: number[] }>>(suggestedPalette);
-    const [viewMode, setViewMode] = useState<'digital' | 'print' | 'both'>('digital');
+const normalizeColorPalette = (palette: any[]) => {
+    if (!palette || !Array.isArray(palette)) return [];
+    return palette.map((c, idx) => ({
+        role: c.role || c.name || (idx === 0 ? 'primary' : idx === 1 ? 'secondary' : 'accent'),
+        hex: c.hex || c.color || '#9ca3af',
+        cmyk: c.cmyk || [0, 0, 0, 0],
+    }));
+};
+
+export function ColorHierarchyBuilder({ id, onAction, suggestedPalette = [], mode = 'both' }: ColorHierarchyBuilderProps) {
+    const [colors, setColors] = React.useState<Array<{ role: string; hex: string; cmyk?: number[] }>>(() =>
+        normalizeColorPalette(suggestedPalette),
+    );
+    const [viewMode, setViewMode] = React.useState<'digital' | 'print' | 'both'>('digital');
+
+    React.useEffect(() => {
+        if (suggestedPalette && suggestedPalette.length > 0) {
+            setColors(normalizeColorPalette(suggestedPalette));
+        }
+    }, [suggestedPalette]);
 
     const addColor = () => {
         const newColor = {
@@ -133,40 +156,46 @@ export function ColorHierarchyBuilder({ id, suggestedPalette = [], mode = 'both'
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                {colors.map((color, i) => (
-                    <Card key={i} className="relative">
-                        <CardContent className="p-3">
-                            <div
-                                className="w-full aspect-square rounded-lg mb-2 shadow-inner"
-                                style={{ backgroundColor: color.hex }}
-                            />
-                            <Input
-                                value={color.hex}
-                                onChange={(e) => updateColor(i, 'hex', e.target.value)}
-                                className="text-xs font-mono mb-1"
-                            />
-                            <select
-                                value={color.role}
-                                onChange={(e) => updateColor(i, 'role', e.target.value)}
-                                className="w-full text-xs border rounded p-1"
-                            >
-                                <option value="primary">Primary (60%)</option>
-                                <option value="secondary">Secondary (30%)</option>
-                                <option value="accent">Accent (10%)</option>
-                            </select>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-red-600 absolute top-2 right-2"
-                                onClick={() => removeColor(i)}
-                            >
-                                ×
-                            </Button>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
+            {colors.length === 0 ? (
+                <div className="text-gray-400 italic text-center py-8 mb-4 border rounded">
+                    No color suggestions provided yet. Click "Add Color" or ask AI to generate a palette.
+                </div>
+            ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                    {colors.map((color, i) => (
+                        <Card key={i} className="relative">
+                            <CardContent className="p-3">
+                                <div
+                                    className="w-full aspect-square rounded-lg mb-2 shadow-inner border border-gray-200 dark:border-gray-700"
+                                    style={{ backgroundColor: color.hex || '#9ca3af' }}
+                                />
+                                <Input
+                                    value={color.hex || '#9ca3af'}
+                                    onChange={(e) => updateColor(i, 'hex', e.target.value)}
+                                    className="text-xs font-mono mb-1"
+                                />
+                                <select
+                                    value={color.role}
+                                    onChange={(e) => updateColor(i, 'role', e.target.value)}
+                                    className="w-full text-xs border rounded p-1 dark:text-gray-200 dark:border-gray-600 dark:bg-gray-900"
+                                >
+                                    <option value="primary">Primary (60%)</option>
+                                    <option value="secondary">Secondary (30%)</option>
+                                    <option value="accent">Accent (10%)</option>
+                                </select>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 text-red-600 absolute top-2 right-2"
+                                    onClick={() => removeColor(i)}
+                                >
+                                    ✕
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+            )}>
 
             {(viewMode === 'print' || viewMode === 'both') && colors.length > 0 && (
                 <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-900 rounded">
@@ -186,7 +215,11 @@ export function ColorHierarchyBuilder({ id, suggestedPalette = [], mode = 'both'
 
             <div className="flex justify-between">
                 <Button variant="outline" onClick={addColor}>Add Color</Button>
-                <Button onClick={() => {/* AI would save palette */}}>Save Palette</Button>
+                <Button onClick={() => onAction?.('complete_step', {
+                    step: 'color_hierarchy',
+                    palette: colors,
+                    mode: viewMode,
+                })}>Save Palette</Button>
             </div>
         </div>
     );
@@ -202,7 +235,7 @@ interface LogoCompositionBuilderProps extends DynamicComponentProps {
     suggestedLockups?: string[];
 }
 
-export function LogoCompositionBuilder({ id, brandId, iconAssetId, wordmark = 'Brand Name', suggestedLockups = ['horizontal', 'stacked', 'icon-only'] }: LogoCompositionBuilderProps) {
+export function LogoCompositionBuilder({ id, onAction, brandId, iconAssetId, wordmark = 'Brand Name', suggestedLockups = ['horizontal', 'stacked', 'icon-only'] }: LogoCompositionBuilderProps) {
     const [lockup, setLockup] = useState('horizontal');
     const [clearspace, setClearspace] = useState(16);
     const [scale, setScale] = useState(100);
@@ -259,10 +292,22 @@ export function LogoCompositionBuilder({ id, brandId, iconAssetId, wordmark = 'B
             </div>
 
             <div className="flex justify-between">
-                <Button variant="outline" onClick={() => {/* AI would generate variations */}}>
+                <Button variant="outline" onClick={() => onAction?.('complete_step', {
+                    step: 'logo_composition',
+                    action: 'generate_variations',
+                    lockup,
+                    clearspace,
+                    scale,
+                })}>
                     Generate Variations
                 </Button>
-                <Button onClick={() => {/* AI would save lockup */}}>Save Composition</Button>
+                <Button onClick={() => onAction?.('complete_step', {
+                    step: 'logo_composition',
+                    lockup,
+                    clearspace,
+                    scale,
+                    wordmark,
+                })}>Save Composition</Button>
             </div>
         </div>
     );

@@ -9,6 +9,7 @@ interface AIComponentData {
 
 interface DynamicRendererProps {
     components: AIComponentData[];
+    onAction?: (action: string, data: Record<string, any>) => void;
 }
 
 // Backend tool names carry an "Invoke" prefix the registry doesn't use.
@@ -18,13 +19,31 @@ const COMPONENT_NAME_ALIASES: Record<string, string> = {
 };
 
 function resolveComponentName(name: string): string {
-    const stripped = name.startsWith('Invoke')
-        ? name.slice('Invoke'.length)
-        : name;
-    return COMPONENT_NAME_ALIASES[stripped] ?? stripped;
+    if (!name) return '';
+
+    let cleaned = name;
+    if (cleaned.toLowerCase().startsWith('invoke_')) {
+        cleaned = cleaned.slice(7);
+    } else if (cleaned.toLowerCase().startsWith('invoke')) {
+        cleaned = cleaned.slice(6);
+    }
+
+    if (COMPONENT_NAME_ALIASES[cleaned]) {
+        cleaned = COMPONENT_NAME_ALIASES[cleaned];
+    }
+    if (ComponentRegistry[cleaned]) {
+        return cleaned;
+    }
+
+    const pascal = cleaned
+        .split(/[-_]+/)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join('');
+
+    return COMPONENT_NAME_ALIASES[pascal] ?? pascal;
 }
 
-export function DynamicRenderer({ components }: DynamicRendererProps) {
+export function DynamicRenderer({ components, onAction }: DynamicRendererProps) {
     return (
         <div className="dynamic-components-container flex flex-col gap-4">
             {components.map((componentData) => {
@@ -57,6 +76,7 @@ export function DynamicRenderer({ components }: DynamicRendererProps) {
                         <div className="group relative overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-gray-950">
                             <Component
                                 id={componentData.id}
+                                onAction={onAction}
                                 {...componentData.props}
                             />
                         </div>

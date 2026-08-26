@@ -3,6 +3,7 @@ import React, { lazy, Suspense } from 'react';
 // Define the component signature expected by all dynamic tools
 export interface DynamicComponentProps {
     id: string;
+    onAction?: (action: string, data: Record<string, any>) => void;
     [key: string]: any;
 }
 

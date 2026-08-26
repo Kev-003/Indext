@@ -5,6 +5,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
+// Shared helper: read-only completion banner
+function CompletedBanner({ label }: { label: string }) {
+    return (
+        <div className="flex items-center gap-2 rounded border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300">
+            <span className="text-base">✓</span>
+            <span>{label}</span>
+        </div>
+    );
+}
+
 // ---------------------------------------------------------
 // 4.1 DirectionComparator
 // ---------------------------------------------------------
@@ -18,10 +28,26 @@ interface DirectionComparatorProps extends DynamicComponentProps {
     brandId?: number;
     directions?: Direction[];
     comparisonDimensions?: string[];
+    completed?: boolean;
+    result?: Record<string, any>;
 }
 
-export function DirectionComparator({ id, directions = [], comparisonDimensions = ['memorability', 'versatility', 'timelessness'] }: DirectionComparatorProps) {
+export function DirectionComparator({ id, onAction, directions = [], comparisonDimensions = ['memorability', 'versatility', 'timelessness'], completed, result }: DirectionComparatorProps) {
     const [votes, setVotes] = useState<Record<string, Record<string, number>>>({});
+
+    if (completed) {
+        const winnerLabel = result?.action === 'select_winner'
+            ? `Winner selected`
+            : result?.action === 'merge'
+            ? 'Directions merged'
+            : 'Comparison completed';
+        return (
+            <div className="p-6 border-l-4 border-l-purple-500">
+                <h3 className="text-lg font-semibold mb-3">Direction Comparator</h3>
+                <CompletedBanner label={winnerLabel} />
+            </div>
+        );
+    }
 
     const vote = (directionId: string, dimension: string, value: number) => {
         setVotes({
@@ -92,10 +118,20 @@ export function DirectionComparator({ id, directions = [], comparisonDimensions 
                     </div>
 
                     <div className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => {/* AI would merge directions */}}>
+                        <Button variant="outline" onClick={() => onAction?.('complete_step', {
+                            step: 'direction_compare',
+                            action: 'merge',
+                            votes,
+                            directions,
+                        })}>
                             Merge Directions
                         </Button>
-                        <Button onClick={() => {/* AI would select winner */}}>
+                        <Button onClick={() => onAction?.('complete_step', {
+                            step: 'direction_compare',
+                            action: 'select_winner',
+                            votes,
+                            directions,
+                        })}>
                             Select Winner
                         </Button>
                     </div>
@@ -113,10 +149,21 @@ interface FeedbackCollectorProps extends DynamicComponentProps {
     target?: string;
     questions?: string[];
     scale?: number;
+    completed?: boolean;
+    result?: Record<string, any>;
 }
 
-export function FeedbackCollector({ id, target = 'logo_direction_1', questions = ['What resonates?', 'What feels off?'], scale = 5 }: FeedbackCollectorProps) {
+export function FeedbackCollector({ id, onAction, target = 'logo_direction_1', questions = ['What resonates?', 'What feels off?'], scale = 5, completed, result }: FeedbackCollectorProps) {
     const [responses, setResponses] = useState<Record<string, { rating: number; text: string }>>({});
+
+    if (completed) {
+        return (
+            <div className="p-6 border-l-4 border-l-yellow-500">
+                <h3 className="text-lg font-semibold mb-3">Feedback Collector</h3>
+                <CompletedBanner label={`Feedback submitted for: ${result?.target ?? target}`} />
+            </div>
+        );
+    }
 
     const updateResponse = (question: string, field: 'rating' | 'text', value: any) => {
         setResponses({
@@ -167,8 +214,17 @@ export function FeedbackCollector({ id, target = 'logo_direction_1', questions =
             </div>
 
             <div className="flex justify-between mt-6">
-                <Button variant="outline" onClick={() => {/* AI would skip */}}>Skip</Button>
-                <Button onClick={() => {/* AI would submit feedback */}}>Submit Feedback</Button>
+                <Button variant="outline" onClick={() => onAction?.('complete_step', {
+                    step: 'feedback_collect',
+                    action: 'skip',
+                    target,
+                    responses,
+                })}>Skip</Button>
+                <Button onClick={() => onAction?.('complete_step', {
+                    step: 'feedback_collect',
+                    target,
+                    responses,
+                })}>Submit Feedback</Button>
             </div>
         </div>
     );
@@ -181,10 +237,37 @@ interface ResonanceConfirmatorProps extends DynamicComponentProps {
     brandId?: number;
     directionId?: string;
     summary?: string;
+    completed?: boolean;
+    result?: Record<string, any>;
 }
 
-export function ResonanceConfirmator({ id, brandId, directionId, summary = '' }: ResonanceConfirmatorProps) {
+export function ResonanceConfirmator({ id, onAction, brandId, directionId, summary = '', completed, result }: ResonanceConfirmatorProps) {
     const [decision, setDecision] = useState<string | null>(null);
+
+    if (completed) {
+        const decisionLabel =
+            (result?.decision === 'confirm' && 'Direction confirmed ✓') ||
+            (result?.decision === 'changes' && 'Changes requested') ||
+            (result?.decision === 'restart' && 'Started over') ||
+            'Completed';
+        return (
+            <div className="p-6 border-l-4 border-l-green-500">
+                <h3 className="text-lg font-semibold mb-3">Confirm Direction</h3>
+                <CompletedBanner label={decisionLabel} />
+            </div>
+        );
+    }
+
+    const handleDecision = (d: string) => {
+        setDecision(d);
+        onAction?.('complete_step', {
+            step: 'resonance_confirm',
+            brandId,
+            directionId,
+            decision: d,
+            summary,
+        });
+    };
 
     return (
         <div className="p-6 border-l-4 border-l-green-500">
@@ -208,21 +291,21 @@ export function ResonanceConfirmator({ id, brandId, directionId, summary = '' }:
                 <Button
                     variant={decision === 'confirm' ? 'default' : 'outline'}
                     className="flex-1"
-                    onClick={() => setDecision('confirm')}
+                    onClick={() => handleDecision('confirm')}
                 >
                     Confirm Direction
                 </Button>
                 <Button
                     variant={decision === 'changes' ? 'default' : 'outline'}
                     className="flex-1"
-                    onClick={() => setDecision('changes')}
+                    onClick={() => handleDecision('changes')}
                 >
                     Request Changes
                 </Button>
                 <Button
                     variant={decision === 'restart' ? 'default' : 'outline'}
                     className="flex-1"
-                    onClick={() => setDecision('restart')}
+                    onClick={() => handleDecision('restart')}
                 >
                     Start Over
                 </Button>

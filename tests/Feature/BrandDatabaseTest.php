@@ -130,7 +130,7 @@ class BrandDatabaseTest extends TestCase
         $this->assertCount(1, BrandAsset::all());
         $this->assertCount(1, BrandGuideline::all());
 
-        $brand->delete();
+        $brand->forceDelete();
 
         $this->assertCount(0, BrandAsset::all());
         $this->assertCount(0, BrandGuideline::all());

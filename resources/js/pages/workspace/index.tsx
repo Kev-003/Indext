@@ -1,7 +1,8 @@
-﻿import { Head, Link, usePage, router } from '@inertiajs/react';
+import { Head, Link, usePage, router } from '@inertiajs/react';
 import { DynamicRenderer } from '@/components/dynamic/renderer';
 import { useChatStream, Message } from '@/hooks/use-chat-stream';
-import { useEffect, useRef, useState } from 'react';
+import { MessageContent } from '@/components/message-content';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -40,6 +41,7 @@ interface WorkspaceProps {
         industry?: string;
         execution_mode?: string;
         status: string;
+        discovery?: Record<string, any>;
     } | null;
     conversation: {
         id: string;
@@ -161,8 +163,9 @@ export default function Workspace({
         isStreaming,
         error,
         sendMessage,
-        setMessages,
+        retryLastMessage,
         activeConversationId,
+        setMessages,
     } = useChatStream(initialMessages, initialConversation?.id);
     const [prompt, setPrompt] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -180,16 +183,33 @@ export default function Workspace({
     );
 
     useEffect(() => {
-        setMessages(initialMessages);
-    }, [initialMessages, setMessages]);
-
-    useEffect(() => {
         setLocalBrands(initialBrands);
     }, [initialBrands]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
+
+    const handleAction = useCallback(
+        (action: string, data: Record<string, any>) => {
+            if (!brand) return;
+            const dataStr = JSON.stringify(data);
+            if (action === 'submit_interview') {
+                void sendMessage(
+                    `INTERVIEW_COMPLETE ${dataStr}`,
+                    brand.id,
+                    activeConversationId ?? initialConversation?.id,
+                );
+            } else if (action === 'complete_step' || action === 'mindmap_confirm') {
+                void sendMessage(
+                    `STEP_COMPLETE ${dataStr}`,
+                    brand.id,
+                    activeConversationId ?? initialConversation?.id,
+                );
+            }
+        },
+        [sendMessage, brand, activeConversationId, initialConversation?.id],
+    );
 
     // Auto-trigger the AI when the workspace loads a conversation that has
     // a user message but no assistant reply yet (e.g. after dashboard creation).
@@ -493,11 +513,7 @@ export default function Workspace({
                                         : 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100'
                                 }`}
                             >
-                                {message.content && (
-                                    <p className="whitespace-pre-wrap">
-                                        {message.content}
-                                    </p>
-                                )}
+                                <MessageContent content={message.content || ''} onAction={handleAction} />
 
                                 {message.tool_calls &&
                                     message.tool_calls.length > 0 && (
@@ -508,9 +524,16 @@ export default function Workspace({
                                                         toolCall.name;
                                                     if (!toolName) return null;
 
+                                                    // Check if this tool call has results (i.e. was already completed)
+                                                    const toolResult = message.tool_results?.find(
+                                                        (tr) => tr.tool_call_id === toolCall.id,
+                                                    );
+                                                    const isCompleted = !!toolResult;
+
                                                     return (
-                                                        <DynamicRenderer
+                                                         <DynamicRenderer
                                                             key={toolCall.id}
+                                                            onAction={handleAction}
                                                             components={[
                                                                 {
                                                                     id:
@@ -519,7 +542,11 @@ export default function Workspace({
                                                                             .id ||
                                                                         toolCall.id,
                                                                     name: toolName,
-                                                                    props: toolCall.arguments,
+                                                                    props: {
+                                                                        ...toolCall.arguments,
+                                                                        completed: isCompleted,
+                                                                        result: toolResult?.result,
+                                                                    },
                                                                 },
                                                             ]}
                                                         />
@@ -559,8 +586,17 @@ export default function Workspace({
 
                 <div className="border-t p-4">
                     {error && (
-                        <div className="mb-2 text-sm text-red-600 dark:text-red-400">
-                            {error}
+                        <div className="mb-2 flex items-center gap-2">
+                            <span className="text-sm text-red-600 dark:text-red-400">
+                                {error}
+                            </span>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => void retryLastMessage()}
+                            >
+                                Retry
+                            </Button>
                         </div>
                     )}
                     <form onSubmit={handlePromptSubmit} className="flex gap-2">

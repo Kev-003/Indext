@@ -42,6 +42,7 @@ class WorkspaceController extends Controller
                         'role' => $msg->role,
                         'content' => $msg->content,
                         'tool_calls' => json_decode($msg->tool_calls, true) ?: [],
+                        'tool_results' => json_decode($msg->tool_results, true) ?: [],
                         'created_at' => $msg->created_at,
                     ]);
                 }
@@ -74,7 +75,16 @@ class WorkspaceController extends Controller
     $hasToolCalls = !empty($msg['tool_calls']);
 
     return $hasContent || $hasToolCalls;
-});
+    });
+
+            if (! $hasAssistantReply
+                && $lastMessage['role'] === 'user'
+                && trim($lastMessage['content'] ?? '') !== ''
+            ) {
+                $autoTrigger = $conversation->created_at
+                    ? $conversation->created_at->gt(now()->subMinutes(10))
+                    : true;
+            }
         }
 
         return Inertia::render('workspace/index', [
@@ -84,6 +94,7 @@ class WorkspaceController extends Controller
                 'industry' => $brand->industry,
                 'execution_mode' => $brand->execution_mode,
                 'status' => $brand->status,
+                'discovery' => $brand->discovery ?? [],
             ] : null,
             'conversation' => $conversation ? [
                 'id' => $conversation->id,

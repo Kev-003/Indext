@@ -6,6 +6,7 @@ use App\Models\Brand;
 use App\Models\Conversation;
 use App\Models\Team;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -34,64 +35,124 @@ class BrandController extends Controller
             ]);
         }
 
-        $name = 'New Brand';
-        if (preg_match('/(?:brand|logo)\s+for\s+(.+)/i', $prompt, $matches)) {
-            $name = trim($matches[1]);
-        }
+        $name = $this->extractBrandName($prompt);
 
-        $brand = DB::transaction(function () use ($request, $team, $name, $prompt) {
-            $brand = Brand::create([
-                'team_id' => $team->id,
-                'user_id' => $request->user()->id,
-                'name' => $name,
-                'status' => 'consultation',
-            ]);
+        $brand = Cache::lock('brand_creation', 30)->block(30, function () use ($request, $team, $name, $prompt) {
+            return DB::transaction(function () use ($request, $team, $name, $prompt) {
+                $reusableBrand = Brand::withTrashed()
+                    ->whereNotNull('deleted_at')
+                    ->orderBy('id')
+                    ->first();
 
-            $agentConversationId = \Illuminate\Support\Str::uuid7()->toString();
+                $brandCreated = false;
+                if ($reusableBrand) {
+                    try {
+                        // Clean up any leftover agent_conversations for this brand
+                        $oldConversationIds = DB::connection()->table('conversations')
+                            ->where('brand_id', $reusableBrand->id)
+                            ->whereNotNull('agent_conversation_id')
+                            ->pluck('agent_conversation_id');
 
-            DB::connection()->table('agent_conversations')->insert([
-                'id' => $agentConversationId,
-                'participant_type' => 'user',
-                'participant_id' => $request->user()->id,
-                'title' => $name . ' Discovery',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+                        foreach ($oldConversationIds as $oldConvId) {
+                            DB::connection()->table('agent_conversation_messages')
+                                ->where('conversation_id', $oldConvId)
+                                ->delete();
+                            DB::connection()->table('agent_conversations')
+                                ->where('id', $oldConvId)
+                                ->delete();
+                        }
 
-            DB::connection()->table('agent_conversation_messages')->insert([
-                'id' => \Illuminate\Support\Str::uuid7()->toString(),
-                'conversation_id' => $agentConversationId,
-                'participant_type' => 'user',
-                'participant_id' => $request->user()->id,
-                'agent' => 'branding',
-                'role' => 'user',
-                'content' => $prompt,
-                'attachments' => '[]',
-                'tool_calls' => '[]',
-                'tool_results' => '[]',
-                'usage' => '[]',
-                'meta' => '[]',
-                'approval_state' => null,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+                        $reusableBrand->forceDelete();
 
-            Conversation::create([
-                'team_id' => $team->id,
-                'brand_id' => $brand->id,
-                'user_id' => $request->user()->id,
-                'agent_conversation_id' => $agentConversationId,
-                'title' => $name . ' Discovery',
-                'status' => 'active',
-            ]);
+                        $brand = new Brand([
+                            'team_id' => $team->id,
+                            'user_id' => $request->user()->id,
+                            'name' => $name,
+                            'status' => 'consultation',
+                        ]);
+                        $brand->id = $reusableBrand->id;
+                        $brand->save();
+                        $brandCreated = true;
+                    } catch (\Throwable $e) {
+                        Log::warning('BrandController: forceDelete failed, falling through to create new brand', [
+                            'reusable_brand_id' => $reusableBrand->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
 
-            return $brand;
+                if (!$brandCreated) {
+                    $brand = Brand::create([
+                        'team_id' => $team->id,
+                        'user_id' => $request->user()->id,
+                        'name' => $name,
+                        'status' => 'consultation',
+                    ]);
+                }
+
+                $agentConversationId = \Illuminate\Support\Str::uuid7()->toString();
+
+                DB::connection()->table('agent_conversations')->insert([
+                    'id' => $agentConversationId,
+                    'participant_type' => 'user',
+                    'participant_id' => $request->user()->id,
+                    'title' => $name . ' Discovery',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                // Note: Do NOT insert into agent_conversation_messages here.
+                // The RememberConversation middleware handles persisting user messages
+                // when the first chat request fires. Inserting here causes duplicate
+                // consecutive user messages which violates Gemini's role alternation.
+
+                Conversation::create([
+                    'team_id' => $team->id,
+                    'brand_id' => $brand->id,
+                    'user_id' => $request->user()->id,
+                    'agent_conversation_id' => $agentConversationId,
+                    'title' => $name . ' Discovery',
+                    'status' => 'active',
+                ]);
+
+                return $brand;
+            });
         });
 
         return redirect()->route('workspace', [
             'current_team' => $team->slug,
             'brand' => $brand->id,
         ]);
+    }
+
+    private function extractBrandName(string $prompt): string
+    {
+        $prompt = trim($prompt);
+
+        // Patterns: "brand for X", "logo for X", "create a brand for X", "build a brand for X"
+        $patterns = [
+            '/(?:create|build|make|design|develop|start)?\s*(?:a|an|my|our)?\s*(?:brand|logo|identity)\s+for\s+([^.!?\n,]+)/i',
+            '/(?:brand|logo)\s+(?:called|named)\s+([^.!?\n,]+)/i',
+            '/([^.!?\n,]+)\s+(?:brand|logo|identity)/i',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $prompt, $matches)) {
+                $name = trim($matches[1]);
+                // Strip leading articles / filler words
+                $name = preg_replace('/^(?:a|an|the|my|our)\s+/i', '', $name);
+                if ($name && strlen($name) <= 80) {
+                    return ucwords(strtolower($name));
+                }
+            }
+        }
+
+        // Fallback: truncate the prompt itself
+        if (strlen($prompt) <= 40) {
+            return $prompt;
+        }
+
+        return substr($prompt, 0, 37) . '...';
     }
 
     public function destroy(Request $request, Brand $brand)
@@ -120,6 +181,7 @@ class BrandController extends Controller
 
                 $brand->conversations()->delete();
                 $brand->assets()->delete();
+                $brand->guideline()->delete();
                 $brand->delete();
             });
 
