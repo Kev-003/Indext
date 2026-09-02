@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 return [
 
@@ -51,14 +51,6 @@ return [
         'api_key' => env('GEMINI_API_KEY'),
         'model' => env('GEMINI_MODEL', 'gemini-3.5-flash'),
         'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
-    ],
-
-    'cloudflare-r2' => [
-        'key' => env('CLOUDFLARE_R2_KEY'),
-        'secret' => env('CLOUDFLARE_R2_SECRET'),
-        'bucket' => env('CLOUDFLARE_R2_BUCKET', 'brand-assets'),
-        'endpoint' => env('CLOUDFLARE_R2_ENDPOINT', 'https://s3.us-east-1.cloudflare.com'),
-        'cdn_domain' => env('CLOUDFLARE_CDN_DOMAIN', ''),
     ],
 
     'llm' => [

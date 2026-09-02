@@ -10,7 +10,8 @@ export interface Message {
         arguments: Record<string, any>;
     }>;
     tool_results?: Array<{
-        tool_call_id: string;
+        tool_call_id?: string;
+        result_id?: string;
         result: Record<string, any>;
     }>;
     created_at: string;
@@ -20,6 +21,13 @@ export function formatUserPrompt(prompt: string): string {
     if (prompt.startsWith('STEP_COMPLETE ')) {
         try {
             const data = JSON.parse(prompt.slice('STEP_COMPLETE '.length));
+
+            if (data.step === 'geometric_constructor') {
+                return data.action === 'refine'
+                    ? 'Refining geometric construction…'
+                    : 'Accepted geometric construction';
+            }
+
             const step = data.step
                 ? data.step.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
                 : 'Step';

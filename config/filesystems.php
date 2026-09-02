@@ -60,6 +60,19 @@ return [
             'report' => false,
         ],
 
+        'r2' => [
+            'driver' => 's3',
+            'key' => env('CLOUDFLARE_R2_KEY'),
+            'secret' => env('CLOUDFLARE_R2_SECRET'),
+            'region' => 'us-east-1',
+            'bucket' => env('CLOUDFLARE_R2_BUCKET', 'brand-assets'),
+            'endpoint' => env('CLOUDFLARE_R2_ENDPOINT', 'https://s3.us-east-1.cloudflare.com'),
+            'url' => env('CLOUDFLARE_CDN_DOMAIN'),
+            'use_path_style_endpoint' => env('CLOUDFLARE_R2_USE_PATH_STYLE', true),
+            'throw' => false,
+            'report' => false,
+        ],
+
     ],
 
     /*

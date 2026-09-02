@@ -1,7 +1,10 @@
+// @no-react-compiler
 import ELK from 'elkjs';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useSketchRefiner } from '@/hooks/use-sketch-refiner';
+import { SHAPE_CONCEPTS, conceptToPointArray, type ShapeConcept } from '@/lib/shape-concepts';
 import type { DynamicComponentProps } from '../registry';
 
 const elk = new ELK({
@@ -450,33 +453,465 @@ export function PalettePicker({ id, initialColors = [] }: PalettePickerProps) {
 }
 
 // ---------------------------------------------------------
-// Geometric Constructor Placeholder (Rust/WASM target)
+// Geometric Constructor (Rust/WASM Sketch Engine)
 // ---------------------------------------------------------
 interface GeometricProps extends DynamicComponentProps {
     mode?: 'Beginner' | 'Experienced';
+    gridSize?: number;
+    conceptOptions?: ShapeConcept[];
+    completed?: boolean;
+    result?: Record<string, any>;
+}
+
+interface DrawPoint {
+    x: number;
+    y: number;
+    pressure?: number;
+    timestamp?: number;
+}
+
+interface DrawnStroke {
+    points: DrawPoint[];
+    color: string;
+    width: number;
 }
 
 export function GeometricConstructor({
     id,
     mode = 'Beginner',
+    gridSize = 20,
+    conceptOptions = SHAPE_CONCEPTS,
+    completed = false,
+    result,
+    onAction,
 }: GeometricProps) {
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const [isDrawing, setIsDrawing] = useState(false);
+    const [currentPath, setCurrentPath] = useState<DrawPoint[]>([]);
+    const [strokes, setStrokes] = useState<DrawnStroke[]>([]);
+    const [refinedSvg, setRefinedSvg] = useState<string | null>(result?.svgPath || result?.svg || null);
+    const [isRefining, setIsRefining] = useState(false);
+    const [refineError, setRefineError] = useState<string | null>(null);
+    const [activeColor, setActiveColor] = useState('#ffffff');
+    const [selectedConcept, setSelectedConcept] = useState<ShapeConcept | null>(null);
+    const isBeginner = mode === 'Beginner';
+
+    const { refine } = useSketchRefiner();
+
+    const initCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
+        canvasRef.current = canvas;
+    }, []);
+
+    const getCanvasPos = useCallback((e: React.MouseEvent | React.TouchEvent): { x: number; y: number } => {
+        const canvas = canvasRef.current;
+
+        if (!canvas) {
+            return { x: 0, y: 0 };
+        }
+
+        const rect = canvas.getBoundingClientRect();
+        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+        return {
+            x: clientX - rect.left,
+            y: clientY - rect.top,
+        };
+    }, []);
+
+    const snapToGrid = useCallback((val: number, size: number): number => {
+        if (isBeginner) {
+            return Math.round(val / size) * size;
+        }
+
+        return val;
+    }, [isBeginner]);
+
+    const startDrawing = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+        if (!canvasRef.current || completed) {
+            return;
+        }
+
+        e.preventDefault();
+        setIsDrawing(true);
+        const pos = getCanvasPos(e);
+        const snapped = {
+            x: snapToGrid(pos.x, gridSize),
+            y: snapToGrid(pos.y, gridSize),
+        };
+        setCurrentPath([snapped]);
+    }, [getCanvasPos, snapToGrid, gridSize, completed]);
+
+    const continueDrawing = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+        if (!isDrawing || !canvasRef.current || completed) {
+            return;
+        }
+
+        e.preventDefault();
+        const pos = getCanvasPos(e);
+        const snapped = {
+            x: snapToGrid(pos.x, gridSize),
+            y: snapToGrid(pos.y, gridSize),
+        };
+        setCurrentPath((prev) => {
+            if (prev.length === 0) {
+                return [snapped];
+            }
+
+            const last = prev[prev.length - 1];
+
+            if (Math.hypot(snapped.x - last.x, snapped.y - last.y) < 2) {
+                return prev;
+            }
+
+            return [...prev, snapped];
+        });
+    }, [isDrawing, getCanvasPos, snapToGrid, gridSize, completed]);
+
+    const finishDrawing = useCallback(() => {
+        if (!isDrawing || currentPath.length < 2) {
+            setIsDrawing(false);
+            setCurrentPath([]);
+
+            return;
+        }
+
+        const stroke: DrawnStroke = {
+            points: currentPath,
+            color: activeColor,
+            width: 2,
+        };
+
+        setStrokes((prev) => [...prev, stroke]);
+        setCurrentPath([]);
+        setIsDrawing(false);
+    }, [isDrawing, currentPath, activeColor]);
+
+    const executeRefine = useCallback(async (allPoints: number[]) => {
+        setIsRefining(true);
+        setRefineError(null);
+
+        try {
+            const res = await refine(allPoints, 2, {
+                epsilon: 3.0,
+                angle_threshold_deg: 30.0,
+                fit_tolerance: 2.0,
+                snap_tolerance: 5.0,
+                min_segment_length: 5.0,
+            });
+
+            if (!res || typeof res.svg_path !== 'string') {
+                throw new Error('Invalid refinement result — missing svg_path');
+            }
+
+            setRefinedSvg(res.svg_path);
+            onAction?.('geometric_refine', {
+                step: 'geometric_constructor',
+                action: 'refine',
+                svgPath: res.svg_path,
+                controlPoints: res.control_points,
+                primitives: res.primitives,
+            });
+        } catch (e) {
+            setRefineError(e instanceof Error ? e.message : 'Refinement failed');
+        } finally {
+            setIsRefining(false);
+        }
+    }, [refine, onAction]);
+
+    const handleBeautify = useCallback(async () => {
+        if (strokes.length === 0) {
+            return;
+        }
+
+        const allPoints: number[] = [];
+        for (const stroke of strokes) {
+            for (const p of stroke.points) {
+                allPoints.push(p.x, p.y);
+            }
+        }
+
+        await executeRefine(allPoints);
+    }, [strokes, executeRefine]);
+
+    const handleSelectConcept = useCallback((concept: ShapeConcept) => {
+        setSelectedConcept(concept);
+    }, []);
+
+    const handleUseConcept = useCallback(async (concept: ShapeConcept) => {
+        setSelectedConcept(concept);
+        const canvas = canvasRef.current;
+        const w = canvas?.offsetWidth || 600;
+        const h = canvas?.offsetHeight || 300;
+        const points = conceptToPointArray(concept, w, h);
+        await executeRefine(points);
+    }, [executeRefine]);
+
+    const handleClear = useCallback(() => {
+        setStrokes([]);
+        setRefinedSvg(null);
+        setCurrentPath([]);
+        setSelectedConcept(null);
+        setRefineError(null);
+    }, []);
+
+    const handleAccept = useCallback(() => {
+        if (refinedSvg) {
+            onAction?.('geometric_accept', {
+                step: 'geometric_constructor',
+                action: 'accept',
+                svgPath: refinedSvg,
+                strokes,
+            });
+        }
+    }, [refinedSvg, strokes, onAction]);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+
+        if (!canvas) {
+            return;
+        }
+
+        const ctx = canvas.getContext('2d');
+
+        if (!ctx) {
+            return;
+        }
+
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = canvas.offsetWidth * dpr;
+        canvas.height = canvas.offsetHeight * dpr;
+        ctx.scale(dpr, dpr);
+
+        const redraw = () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw existing strokes
+            for (const stroke of strokes) {
+                if (stroke.points.length < 2) {
+                    continue;
+                }
+
+                ctx.strokeStyle = stroke.color;
+                ctx.lineWidth = stroke.width;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.beginPath();
+                ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+
+                for (let i = 1; i < stroke.points.length; i++) {
+                    ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+                }
+
+                ctx.stroke();
+            }
+
+            // Draw current path
+            if (currentPath.length > 0) {
+                ctx.strokeStyle = activeColor;
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.beginPath();
+                ctx.moveTo(currentPath[0].x, currentPath[0].y);
+
+                for (let i = 1; i < currentPath.length; i++) {
+                    ctx.lineTo(currentPath[i].x, currentPath[i].y);
+                }
+
+                ctx.stroke();
+            }
+        };
+
+        redraw();
+    }, [strokes, currentPath, activeColor]);
+
+    if (completed) {
+        const markSvg = result?.svgPath || result?.svg || refinedSvg;
+        return (
+            <div className="p-4">
+                <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-lg font-display font-semibold text-nm-cyan">
+                        Geometric Construction Accepted
+                    </h3>
+                    <span className="rounded bg-nm-cyan/10 px-2 py-1 font-mono text-xs text-nm-cyan">
+                        Brand Asset Created
+                    </span>
+                </div>
+                <div className="flex flex-col items-center justify-center rounded-lg border border-nm-grid bg-white p-6 dark:bg-nm-paper-dark">
+                    {markSvg ? (
+                        <svg
+                            viewBox="0 0 600 300"
+                            className="h-32 w-64 max-w-full"
+                        >
+                            <path
+                                d={markSvg}
+                                fill="none"
+                                stroke="var(--nm-cyan)"
+                                strokeWidth={3}
+                                strokeLinejoin="round"
+                                strokeLinecap="round"
+                            />
+                        </svg>
+                    ) : (
+                        <div className="text-sm text-muted-foreground italic">
+                            Primary brand mark accepted and stored.
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="p-4">
             <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-display font-semibold text-nm-amber dark:text-nm-amber">Geometric Constructor</h3>
+                <h3 className="text-lg font-display font-semibold text-nm-amber dark:text-nm-amber">
+                    Geometric Constructor
+                </h3>
                 <span className="rounded bg-nm-steel/10 px-2 py-1 font-mono text-xs text-nm-steel">
                     Mode: {mode}
                 </span>
             </div>
-            <div className="bg-nm-steel/10 dark:bg-nm-paper-dark flex aspect-video items-center justify-center rounded border">
-                <div className="text-center">
-                    <p className="text-sm text-muted-foreground">
-                        [Rust/WASM Sketch Engine Mounting Point]
-                    </p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                        Awaiting WASM module initialization...
-                    </p>
+
+            {/* Concept Palette */}
+            {conceptOptions && conceptOptions.length > 0 && (
+                <div className="mb-4">
+                    <div className="mb-2 flex items-center justify-between">
+                        <span className="text-xs font-mono font-medium text-nm-steel uppercase tracking-wider">
+                            Concept Skeletons & Archetypes
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                            Click to preview or use
+                        </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6">
+                        {conceptOptions.map((concept) => (
+                            <div
+                                key={concept.id}
+                                onClick={() => handleSelectConcept(concept)}
+                                className={`group cursor-pointer rounded-lg border p-2 transition-all ${
+                                    selectedConcept?.id === concept.id
+                                        ? 'border-nm-cyan bg-nm-cyan/10'
+                                        : 'border-nm-grid bg-white hover:border-nm-steel/50 dark:bg-nm-paper-dark'
+                                }`}
+                            >
+                                <div
+                                    className="mx-auto h-12 w-12 text-nm-ink dark:text-gray-200"
+                                    dangerouslySetInnerHTML={{ __html: concept.previewSvg }}
+                                />
+                                <div className="mt-1 text-center">
+                                    <p className="truncate text-xs font-medium text-nm-ink dark:text-gray-100">
+                                        {concept.label}
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            void handleUseConcept(concept);
+                                        }}
+                                        className="mt-1 block w-full rounded bg-nm-steel/10 py-0.5 text-[10px] font-mono text-nm-steel hover:bg-nm-cyan hover:text-white"
+                                    >
+                                        Use Concept
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
+            )}
+
+            <div className="bg-nm-steel/10 dark:bg-nm-paper-dark relative mb-4 flex aspect-video items-center justify-center rounded border">
+                {strokes.length === 0 && !refinedSvg && !selectedConcept && (
+                    <div className="text-center text-sm text-muted-foreground">
+                        <p>Draw on the canvas below, or pick a concept skeleton above</p>
+                        <p className="mt-1 text-xs">
+                            {isBeginner
+                                ? 'Snapping to grid enabled'
+                                : 'Freehand mode — no grid'}
+                        </p>
+                    </div>
+                )}
+
+                {/* Ghost concept guide overlay */}
+                {selectedConcept && !refinedSvg && strokes.length === 0 && (
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-30">
+                        <div
+                            className="h-36 w-36 text-nm-cyan"
+                            dangerouslySetInnerHTML={{ __html: selectedConcept.previewSvg }}
+                        />
+                    </div>
+                )}
+
+                {refineError && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                        <div className="text-center text-red-400">
+                            <p className="font-medium">WASM Error</p>
+                            <p className="text-sm">{refineError}</p>
+                        </div>
+                    </div>
+                )}
+
+                <canvas
+                    ref={initCanvas}
+                    className="absolute inset-0 h-full w-full cursor-crosshair"
+                    onMouseDown={startDrawing}
+                    onMouseMove={continueDrawing}
+                    onMouseUp={finishDrawing}
+                    onMouseLeave={finishDrawing}
+                    onTouchStart={startDrawing}
+                    onTouchMove={continueDrawing}
+                    onTouchEnd={finishDrawing}
+                />
+
+                {refinedSvg && (
+                    <svg
+                        className="absolute inset-0 h-full w-full"
+                        style={{ pointerEvents: 'none' }}
+                    >
+                        <path
+                            d={refinedSvg}
+                            fill="none"
+                            stroke="var(--nm-cyan)"
+                            strokeWidth={2}
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                        />
+                    </svg>
+                )}
+            </div>
+
+            <div className="mb-4 flex gap-2">
+                <input
+                    type="color"
+                    value={activeColor}
+                    onChange={(e) => setActiveColor(e.target.value)}
+                    className="h-8 w-12 cursor-pointer rounded border"
+                />
+                <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleClear}
+                    disabled={strokes.length === 0 && !refinedSvg && !selectedConcept}
+                >
+                    Clear Canvas
+                </Button>
+            </div>
+
+            <div className="flex justify-end gap-2">
+                {refinedSvg && (
+                    <Button size="sm" variant="outline" onClick={handleAccept}>
+                        Accept Refinement
+                    </Button>
+                )}
+                <Button
+                    size="sm"
+                    onClick={handleBeautify}
+                    disabled={strokes.length === 0 || isRefining}
+                >
+                    {isRefining ? 'Refining...' : 'Beautify'}
+                </Button>
             </div>
         </div>
     );

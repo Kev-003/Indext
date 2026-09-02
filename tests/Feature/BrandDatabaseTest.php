@@ -109,7 +109,7 @@ class BrandDatabaseTest extends TestCase
     public function test_deleting_a_brand_cascade_deletes_assets_and_guidelines(): void
     {
         $user = User::factory()->create();
-        
+
         $brand = Brand::create([
             'user_id' => $user->id,
             'name' => 'Acme Corp',
@@ -134,5 +134,62 @@ class BrandDatabaseTest extends TestCase
 
         $this->assertCount(0, BrandAsset::all());
         $this->assertCount(0, BrandGuideline::all());
+    }
+
+    public function test_a_brand_gets_a_unique_slug_on_create(): void
+    {
+        $user = User::factory()->create();
+
+        $first = Brand::create([
+            'user_id' => $user->id,
+            'name' => 'Acme Corp',
+        ]);
+
+        $second = Brand::create([
+            'user_id' => $user->id,
+            'name' => 'Acme Corp',
+        ]);
+
+        $this->assertNotNull($first->slug);
+        $this->assertNotNull($second->slug);
+        $this->assertNotEquals($first->slug, $second->slug);
+    }
+
+    public function test_soft_deleted_brands_retain_their_slug(): void
+    {
+        $user = User::factory()->create();
+
+        $first = Brand::create([
+            'user_id' => $user->id,
+            'name' => 'Acme Corp',
+        ]);
+
+        $first->delete();
+
+        $second = Brand::create([
+            'user_id' => $user->id,
+            'name' => 'Acme Corp',
+        ]);
+
+        $this->assertNotEquals($first->slug, $second->slug);
+        $this->assertNotNull($second->slug);
+    }
+
+    public function test_brand_can_be_resolved_by_id_or_slug(): void
+    {
+        $user = User::factory()->create();
+
+        $brand = Brand::create([
+            'user_id' => $user->id,
+            'name' => 'Acme Corp',
+        ]);
+
+        $bySlug = (new \App\Models\Brand)->resolveRouteBinding($brand->slug);
+        $byId = (new \App\Models\Brand)->resolveRouteBinding((string) $brand->id);
+
+        $this->assertNotNull($bySlug);
+        $this->assertSame($brand->id, $bySlug->id);
+        $this->assertNotNull($byId);
+        $this->assertSame($brand->id, $byId->id);
     }
 }

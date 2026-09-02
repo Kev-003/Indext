@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react';
 import laravel from 'laravel-vite-plugin';
 import { bunny } from 'laravel-vite-plugin/fonts';
 import { defineConfig, type Plugin } from 'vite';
+import path from 'node:path';
 
 function webWorkerShim(): Plugin {
     return {
@@ -32,6 +33,24 @@ function webWorkerShim(): Plugin {
 }
 
 export default defineConfig({
+    resolve: {
+        alias: {
+            '@wasm': path.resolve(import.meta.dirname, 'rust/sketch-engine/pkg'),
+        },
+    },
+    server: {
+        host: '127.0.0.1',
+        strictPort: 5173,
+        headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+            'Access-Control-Expose-Headers': '*',
+        },
+    },
+    assetsInclude: ['**/*.wasm'],
+    ssr: {
+        external: ['@wasm/sketch_engine', '@wasm/sketch_engine_bg.wasm'],
+    },
     plugins: [
         laravel({
             input: ['resources/css/app.css', 'resources/js/app.tsx'],

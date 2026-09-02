@@ -1,0 +1,21 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "permission": {
+    "bash": "ask",
+    "read": "allow",
+    
+    // --- OVERRIDES (Evaluated last, so they take absolute priority) ---
+    "read": {
+      "*.env*": "deny",
+      "*.env": "deny"
+    },
+    "edit": {
+      "*.env*": "deny",
+      "*.env": "deny"
+    },
+    "write": {
+      "*.env*": "deny",
+      "*.env": "deny"
+    }
+  }
+}

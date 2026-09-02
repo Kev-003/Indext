@@ -40,6 +40,7 @@ class DashboardController extends Controller
             ->get()
             ->map(fn (\App\Models\Brand $brand) => [
                 'id' => $brand->id,
+                'slug' => $brand->slug,
                 'name' => $brand->name,
                 'industry' => $brand->industry,
                 'status' => $brand->status,

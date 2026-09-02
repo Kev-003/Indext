@@ -576,4 +576,104 @@ class ChatStreamingTest extends TestCase
         $toolCallData = json_decode(reset($toolCallEvents)['data'], true);
         $this->assertEquals('invoke_color_hierarchy_builder', $toolCallData['name']);
     }
+
+    // ========================================================================
+    // Test Group 7: Geometric Mark Persistence & Brand Finalization (Tasks 7, 9, 10)
+    // ========================================================================
+
+    public function test_geometric_accept_creates_brand_asset(): void
+    {
+        [$user, $team] = $this->createUserWithTeam();
+        $brand = $this->createBrand($user, $team);
+
+        BrandingAgent::fake(['Acknowledged geometric mark. Moving to color palette.']);
+
+        $this->actingAs($user);
+
+        $svgPath = 'M 100 100 L 200 200 L 100 200 Z';
+        $response = $this->postJson("/api/brands/{$brand->id}/chat/message", [
+            'prompt' => 'STEP_COMPLETE {"step":"geometric_constructor","action":"accept","svgPath":"'.$svgPath.'","primitives":[{"type":"polygon"}]}',
+        ]);
+
+        $response->assertOk();
+        $this->consumeStream($response);
+
+        $this->assertDatabaseHas('brand_assets', [
+            'brand_id' => $brand->id,
+            'type' => 'logo_icon',
+            'is_approved' => 1,
+        ]);
+
+        $asset = \App\Models\BrandAsset::where('brand_id', $brand->id)->where('type', 'logo_icon')->first();
+        $this->assertNotNull($asset);
+        $this->assertEquals($svgPath, $asset->content['svg']);
+
+        $refreshedBrand = $brand->fresh();
+        $this->assertArrayHasKey('geometric_constructor', $refreshedBrand->discovery);
+        $this->assertEquals($svgPath, $refreshedBrand->discovery['geometric_constructor']['svgPath']);
+    }
+
+    public function test_geometric_refine_persists_discovery_key(): void
+    {
+        [$user, $team] = $this->createUserWithTeam();
+        $brand = $this->createBrand($user, $team);
+
+        BrandingAgent::fake(['Refined sketch.']);
+
+        $this->actingAs($user);
+
+        $svgPath = 'M 50 50 L 150 150';
+        $response = $this->postJson("/api/brands/{$brand->id}/chat/message", [
+            'prompt' => 'STEP_COMPLETE {"step":"geometric_constructor","action":"refine","svgPath":"'.$svgPath.'"}',
+        ]);
+
+        $response->assertOk();
+        $this->consumeStream($response);
+
+        $refreshedBrand = $brand->fresh();
+        $this->assertArrayHasKey('geometric_constructor', $refreshedBrand->discovery);
+        $this->assertEquals($svgPath, $refreshedBrand->discovery['geometric_constructor']['svgPath']);
+    }
+
+    public function test_brand_finalization_endpoint_materializes_guideline(): void
+    {
+        [$user, $team] = $this->createUserWithTeam();
+        $brand = $this->createBrand($user, $team);
+
+        $svgPath = 'M 20 20 C 40 10 60 10 80 20';
+        \App\Models\BrandAsset::create([
+            'brand_id' => $brand->id,
+            'type' => 'logo_icon',
+            'name' => "{$brand->name} primary mark",
+            'content' => ['svg' => $svgPath, 'primitives' => []],
+            'version' => 1,
+            'is_approved' => true,
+        ]);
+
+        $brand->update([
+            'discovery' => [
+                'palette' => [['name' => 'Cyan', 'hex' => '#0ea5e0']],
+                'typography_hierarchy' => [['heading' => 'Space Grotesk', 'body' => 'JetBrains Mono']],
+            ],
+            'strategy' => [
+                'typography_pairing' => ['heading' => 'Space Grotesk', 'body' => 'JetBrains Mono'],
+            ],
+        ]);
+
+        $this->actingAs($user);
+
+        $response = $this->postJson("/api/brands/{$brand->slug}/finalize");
+        $response->assertOk();
+        $response->assertJson(['success' => true]);
+
+        $this->assertDatabaseHas('brand_guidelines', [
+            'brand_id' => $brand->id,
+            'is_published' => 1,
+        ]);
+
+        $guideline = \App\Models\BrandGuideline::where('brand_id', $brand->id)->first();
+        $this->assertNotNull($guideline);
+        $this->assertEquals($svgPath, $guideline->logo_guidelines['primary_mark']['svg']);
+        $this->assertEquals('delivered', $brand->fresh()->status);
+    }
 }

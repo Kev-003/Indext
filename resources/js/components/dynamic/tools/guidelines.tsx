@@ -1,5 +1,6 @@
-import { Check, X } from '@phosphor-icons/react';
+import { Check, X, Copy, CheckCircle } from '@phosphor-icons/react';
 import React, { useState } from 'react';
+import { usePage, router } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import type { DynamicComponentProps } from '../registry';
 
 // ---------------------------------------------------------
-// 5.1 BrandGuidelineDocument
+// 5.1 BrandGuidelineDocument (Brand Completion Terminal)
 // ---------------------------------------------------------
 interface BrandGuidelineDocumentProps extends DynamicComponentProps {
     brandId?: number;
@@ -16,46 +17,292 @@ interface BrandGuidelineDocumentProps extends DynamicComponentProps {
     readonly?: boolean;
 }
 
-export function BrandGuidelineDocument({ id, onAction, brandId, sections = ['logo', 'color', 'typography', 'assets', 'future'], readonly = false }: BrandGuidelineDocumentProps) {
-    const [activeSection, setActiveSection] = useState(sections[0]);
+export function BrandGuidelineDocument({
+    id,
+    onAction,
+    brandId,
+    sections = ['logo', 'color', 'typography', 'assets', 'future'],
+    readonly = false,
+}: BrandGuidelineDocumentProps) {
+    const page = usePage<any>();
+    const brand = page.props?.brand;
+    const currentTeamSlug = page.props?.currentTeam?.slug || '';
+    const brandSlug = brand?.slug || brand?.id || brandId;
+
+    const [activeSection, setActiveSection] = useState(sections[0] || 'logo');
+    const [isFinalizing, setIsFinalizing] = useState(false);
+    const [copied, setCopied] = useState(false);
+    const [publishStatus, setPublishStatus] = useState<boolean>(
+        brand?.guideline?.is_published ?? (brand?.status === 'delivered')
+    );
+
+    const guideline = brand?.guideline;
+    const discovery = brand?.discovery ?? {};
+    const strategy = brand?.strategy ?? {};
+
+    // Derive logo SVG
+    const logoSvg =
+        guideline?.logo_guidelines?.primary_mark?.svg ||
+        discovery?.geometric_constructor?.svgPath ||
+        discovery?.geometric_constructor?.svg ||
+        '';
+
+    // Derive palette
+    const palette =
+        guideline?.color_guidelines?.palette ||
+        discovery?.palette ||
+        strategy?.color_system ||
+        [
+            { name: 'Paper Base', color: '#f8fafc', hex: '#f8fafc', role: 'dominant' },
+            { name: 'Steel Neutral', color: '#64748b', hex: '#64748b', role: 'structural' },
+            { name: 'Cyan Accent', color: '#0ea5e0', hex: '#0ea5e0', role: 'accent' },
+        ];
+
+    // Derive typography
+    const typographyPairing =
+        guideline?.typography_guidelines?.pairing ||
+        strategy?.typography_pairing || {
+            heading: 'Space Grotesk',
+            body: 'JetBrains Mono',
+        };
+
+    const handleFinalize = async () => {
+        if (!brandSlug) return;
+        setIsFinalizing(true);
+        try {
+            const res = await fetch(`/api/brands/${brandSlug}/finalize`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
+                },
+            });
+            if (res.ok) {
+                setPublishStatus(true);
+                router.reload({ only: ['brand'] });
+            }
+        } catch (e) {
+            console.error('Finalize error', e);
+        } finally {
+            setIsFinalizing(false);
+        }
+    };
+
+    const handleCopyJson = () => {
+        const payload = {
+            brandName: brand?.name,
+            status: 'delivered',
+            logoSvg,
+            palette,
+            typography: typographyPairing,
+            discovery,
+            guideline,
+        };
+        navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
 
     const renderSection = () => {
         switch (activeSection) {
             case 'logo':
                 return (
-                    <div className="space-y-4">
-                        <h4 className="font-medium">Logo Rules</h4>
-                        <p className="text-sm text-muted-foreground">Define logo composition, clearspace, minimum size, and usage rules here.</p>
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between">
+                            <h4 className="font-display font-semibold text-nm-ink dark:text-gray-100">
+                                Primary Brand Mark
+                            </h4>
+                            <span className="rounded bg-nm-cyan/10 px-2 py-0.5 font-mono text-xs text-nm-cyan">
+                                Vector Master
+                            </span>
+                        </div>
+
+                        <div className="flex flex-col items-center justify-center rounded-lg border border-nm-grid bg-white p-8 dark:bg-nm-paper-dark">
+                            {logoSvg ? (
+                                <svg
+                                    viewBox="0 0 600 300"
+                                    className="h-40 w-80 max-w-full"
+                                >
+                                    <path
+                                        d={logoSvg}
+                                        fill="none"
+                                        stroke="var(--nm-cyan)"
+                                        strokeWidth={3}
+                                        strokeLinejoin="round"
+                                        strokeLinecap="round"
+                                    />
+                                </svg>
+                            ) : (
+                                <div className="text-center text-sm text-muted-foreground italic">
+                                    No geometric logo mark generated yet. Complete the Geometric Constructor step.
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div className="rounded border border-nm-grid p-4 bg-white dark:bg-nm-paper-dark">
+                                <h5 className="text-xs font-mono font-semibold uppercase tracking-wider text-nm-steel">
+                                    Clear Space & Sizing
+                                </h5>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    Maintain minimum perimeter clear space equal to 100% of mark height. Minimum display height is 24px digital / 8mm print.
+                                </p>
+                            </div>
+                            <div className="rounded border border-nm-grid p-4 bg-white dark:bg-nm-paper-dark">
+                                <h5 className="text-xs font-mono font-semibold uppercase tracking-wider text-nm-steel">
+                                    Usage Guidelines
+                                </h5>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    Do not stretch, shear, distort, or apply unapproved color gradients to the vector mark geometry.
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 );
+
             case 'color':
                 return (
-                    <div className="space-y-4">
-                        <h4 className="font-medium">Color System</h4>
-                        <p className="text-sm text-muted-foreground">Define color hierarchy, CMYK/RGB values, and accessibility rules here.</p>
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between">
+                            <h4 className="font-display font-semibold text-nm-ink dark:text-gray-100">
+                                Color Architecture (60-30-10)
+                            </h4>
+                            <span className="rounded bg-nm-amber/10 px-2 py-0.5 font-mono text-xs text-nm-amber">
+                                Harmonics
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                            {Array.isArray(palette) && palette.map((col: any, idx: number) => {
+                                const hex = col.hex || col.color || (typeof col === 'string' ? col : '#0ea5e0');
+                                const name = col.name || col.role || `Color ${idx + 1}`;
+                                return (
+                                    <div key={idx} className="rounded-lg border border-nm-grid bg-white p-3 dark:bg-nm-paper-dark">
+                                        <div
+                                            className="h-24 w-full rounded-md shadow-inner"
+                                            style={{ backgroundColor: hex }}
+                                        />
+                                        <div className="mt-2 flex items-center justify-between">
+                                            <span className="text-sm font-medium text-nm-ink dark:text-gray-200">
+                                                {name}
+                                            </span>
+                                            <span className="font-mono text-xs text-nm-steel">
+                                                {hex}
+                                            </span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 );
+
             case 'typography':
                 return (
-                    <div className="space-y-4">
-                        <h4 className="font-medium">Typography</h4>
-                        <p className="text-sm text-muted-foreground">Define type pairings, scale, weights, and hierarchy rules here.</p>
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between">
+                            <h4 className="font-display font-semibold text-nm-ink dark:text-gray-100">
+                                Typography Pairing & Hierarchy
+                            </h4>
+                            <span className="rounded bg-nm-steel/10 px-2 py-0.5 font-mono text-xs text-nm-steel">
+                                Type Specimen
+                            </span>
+                        </div>
+
+                        <div className="rounded-lg border border-nm-grid bg-white p-6 dark:bg-nm-paper-dark space-y-4">
+                            <div>
+                                <span className="font-mono text-xs text-nm-steel uppercase tracking-wider">
+                                    Display &amp; Headings — {typographyPairing.heading || 'Space Grotesk'}
+                                </span>
+                                <p
+                                    style={{ fontFamily: typographyPairing.heading || 'Space Grotesk' }}
+                                    className="mt-1 text-3xl font-bold tracking-tight text-nm-ink dark:text-gray-100"
+                                >
+                                    {brand?.name || 'Nomentra'} Identity Systems
+                                </p>
+                            </div>
+                            <div className="border-t border-nm-grid pt-4">
+                                <span className="font-mono text-xs text-nm-steel uppercase tracking-wider">
+                                    Body &amp; Technical Specimen — {typographyPairing.body || 'JetBrains Mono'}
+                                </span>
+                                <p
+                                    style={{ fontFamily: typographyPairing.body || 'JetBrains Mono' }}
+                                    className="mt-1 text-sm text-muted-foreground leading-relaxed"
+                                >
+                                    Structured constructive branding with programmatic precision. The quick brown fox jumps over the lazy dog. 0123456789.
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 );
+
             case 'assets':
                 return (
-                    <div className="space-y-4">
-                        <h4 className="font-medium">Assets & Patterns</h4>
-                        <p className="text-sm text-muted-foreground">Define shapes, patterns, and usage rules across Social, Web, and Print here.</p>
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between">
+                            <h4 className="font-display font-semibold text-nm-ink dark:text-gray-100">
+                                Brand Asset Library
+                            </h4>
+                            <span className="rounded bg-nm-steel/10 px-2 py-0.5 font-mono text-xs text-nm-steel">
+                                Production Files
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div className="rounded-lg border border-nm-grid bg-white p-4 dark:bg-nm-paper-dark">
+                                <h5 className="font-medium text-sm text-nm-ink dark:text-gray-200">
+                                    Vector Mark (SVG / PDF)
+                                </h5>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    Scalable vector paths optimized for digital platforms and high-resolution print.
+                                </p>
+                            </div>
+                            <div className="rounded-lg border border-nm-grid bg-white p-4 dark:bg-nm-paper-dark">
+                                <h5 className="font-medium text-sm text-nm-ink dark:text-gray-200">
+                                    Design System Tokens
+                                </h5>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    W3C design token definitions for CSS, Tailwind, Swift, and Android Jetpack Compose.
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 );
+
             case 'future':
                 return (
-                    <div className="space-y-4">
-                        <h4 className="font-medium">Future Plans & Governance</h4>
-                        <p className="text-sm text-muted-foreground">Define development handoff, digital presence, physical touchpoints, and brand governance rules here.</p>
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between">
+                            <h4 className="font-display font-semibold text-nm-ink dark:text-gray-100">
+                                Governance &amp; Future Roadmap
+                            </h4>
+                            <span className="rounded bg-nm-steel/10 px-2 py-0.5 font-mono text-xs text-nm-steel">
+                                Handoff Ready
+                            </span>
+                        </div>
+
+                        <ul className="space-y-2 text-sm text-muted-foreground">
+                            <li className="flex items-center gap-2">
+                                <Check className="h-4 w-4 text-nm-cyan" />
+                                Master vector logo mark committed to repository
+                            </li>
+                            <li className="flex items-center gap-2">
+                                <Check className="h-4 w-4 text-nm-cyan" />
+                                Color contrast validation &amp; hierarchy distribution
+                            </li>
+                            <li className="flex items-center gap-2">
+                                <Check className="h-4 w-4 text-nm-cyan" />
+                                Typography specimens calibrated for Web &amp; Mobile
+                            </li>
+                            <li className="flex items-center gap-2">
+                                <Check className="h-4 w-4 text-nm-cyan" />
+                                Exportable brand kit package compiled
+                            </li>
+                        </ul>
                     </div>
                 );
+
             default:
                 return <p className="text-sm text-muted-foreground">Select a section to view.</p>;
         }
@@ -63,41 +310,65 @@ export function BrandGuidelineDocument({ id, onAction, brandId, sections = ['log
 
     return (
         <div className="p-4">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-display font-semibold text-nm-steel dark:text-nm-steel">
-                    Brand Guidelines</h3>
-                <div className="flex gap-2">
-                    {!readonly && (
-                        <Button variant="outline" size="sm" onClick={() => onAction?.('complete_step', {
-                            step: 'guideline_regenerate',
-                            brandId,
-                            section: activeSection,
-                        })}>Regenerate Section</Button>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-display font-semibold text-nm-ink dark:text-gray-100">
+                        Brand Identity Guidelines
+                    </h3>
+                    {publishStatus && (
+                        <span className="flex items-center gap-1 rounded bg-nm-cyan/10 px-2 py-0.5 font-mono text-xs text-nm-cyan">
+                            <CheckCircle size={12} weight="fill" />
+                            Published
+                        </span>
                     )}
-                    <Button size="sm" onClick={() => onAction?.('complete_step', {
-                        step: 'guideline_export',
-                        brandId,
-                        format: 'pdf',
-                        section: activeSection,
-                    })}>Export PDF</Button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCopyJson}
+                        className="gap-1 font-mono text-xs"
+                    >
+                        <Copy size={13} />
+                        {copied ? 'Copied JSON!' : 'Export JSON'}
+                    </Button>
+                    {!publishStatus ? (
+                        <Button
+                            size="sm"
+                            onClick={handleFinalize}
+                            disabled={isFinalizing}
+                            className="bg-nm-cyan text-white hover:bg-nm-cyan/90"
+                        >
+                            {isFinalizing ? 'Finalizing...' : 'Finalize & Publish Brand'}
+                        </Button>
+                    ) : (
+                        <span className="text-xs font-mono text-nm-steel">
+                            Brand Delivered
+                        </span>
+                    )}
                 </div>
             </div>
 
-            <div className="flex gap-2 mb-6 overflow-x-auto">
+            <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
                 {sections.map((section) => (
                     <Button
                         key={section}
                         variant={activeSection === section ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setActiveSection(section)}
-                        className="capitalize"
+                        className={`capitalize font-mono text-xs ${
+                            activeSection === section
+                                ? 'bg-nm-cyan text-white hover:bg-nm-cyan/90'
+                                : 'border-nm-grid'
+                        }`}
                     >
                         {section}
                     </Button>
                 ))}
             </div>
 
-            <div className="border rounded-lg p-6 bg-nm-paper dark:bg-nm-paper-dark min-h-[300px]">
+            <div className="rounded-lg border border-nm-grid bg-nm-paper p-6 dark:bg-nm-paper-dark min-h-[320px]">
                 {renderSection()}
             </div>
         </div>
@@ -312,22 +583,47 @@ interface TypographyHierarchyDocProps extends DynamicComponentProps {
     pairings?: Array<{ heading: string; body: string; scale?: string[] }>;
 }
 
-export function TypographyHierarchyDoc({ id, brandId, pairings = [] }: TypographyHierarchyDocProps) {
+const normalizeTypographyHierarchy = (pairings: any[]) => {
+    if (!pairings || !Array.isArray(pairings)) {
+        return [];
+    }
+    return pairings.map((p, idx) => ({
+        heading:
+            p?.heading ?? p?.headingFont ?? p?.display ?? p?.heading_name ?? 'Untitled heading',
+        body: p?.body ?? p?.bodyFont ?? p?.subhead ?? p?.body_name ?? 'Untitled body',
+        scale: p?.scale ?? p?.typeScale ?? null,
+    }));
+};
+
+export function TypographyHierarchyDoc({ id, onAction, brandId, pairings = [] }: TypographyHierarchyDocProps) {
+    const normalizedPairings = normalizeTypographyHierarchy(pairings);
+    const handleContinue = (skipped = false) => {
+        onAction?.('complete_step', {
+            step: 'typography_hierarchy',
+            brandId,
+            pairings: normalizedPairings,
+            skipped,
+        });
+    };
+
     return (
         <div className="p-4">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-display font-semibold text-nm-steel dark:text-nm-steel">
                     Typography Hierarchy</h3>
-                <Button variant="outline" size="sm">Export Specimen</Button>
+                <div className="flex gap-2">
+                    <Button variant="outline" size="sm">Export Specimen</Button>
+                    <Button size="sm" onClick={() => handleContinue(false)}>Accept &amp; Continue</Button>
+                </div>
             </div>
 
-            {pairings.length === 0 ? (
+            {normalizedPairings.length === 0 ? (
                 <div className="text-muted-foreground italic text-center py-8">
                     No typography pairings defined yet.
                 </div>
             ) : (
                 <div className="space-y-6">
-                    {pairings.map((pairing, i) => (
+                    {normalizedPairings.map((pairing, i) => (
                         <div key={i} className="border rounded-lg p-6">
                             <div className="mb-4">
                                 <h4 style={{ fontFamily: pairing.heading }} className="text-4xl font-bold mb-2">
@@ -338,11 +634,11 @@ export function TypographyHierarchyDoc({ id, brandId, pairings = [] }: Typograph
                                 </p>
                             </div>
 
-                            {pairing.scale && (
+                            {pairing.scale && Array.isArray(pairing.scale) && (
                                 <div className="space-y-2">
                                     <Label>Type Scale</Label>
                                     <div className="flex flex-wrap gap-2">
-                                        {pairing.scale.map((size, j) => (
+                                        {pairing.scale.map((size: string, j: number) => (
                                             <span key={j} className="px-2 py-1 bg-nm-steel/10 dark:bg-nm-paper-dark rounded text-xs font-mono text-nm-steel">
                                                 {size}
                                             </span>
@@ -352,6 +648,12 @@ export function TypographyHierarchyDoc({ id, brandId, pairings = [] }: Typograph
                             )}
                         </div>
                     ))}
+                </div>
+            )}
+
+            {normalizedPairings.length === 0 && (
+                <div className="flex justify-end mt-4">
+                    <Button variant="outline" onClick={() => handleContinue(true)}>Skip</Button>
                 </div>
             )}
         </div>

@@ -2,8 +2,9 @@
 
 namespace App\Services;
 
-use Aws\S3\S3Client;
 use Aws\Exception\AwsException;
+use Aws\S3\S3Client;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Redis;
 
 class CloudflareR2StorageService
@@ -16,19 +17,21 @@ class CloudflareR2StorageService
 
     public function __construct()
     {
+        $config = Config::get('filesystems.disks.r2', []);
+
         $this->client = new S3Client([
             'version' => 'latest',
-            'region' => 'us-east-1',
-            'endpoint' => config('services.cloudflare-r2.endpoint'),
-            'use_path_style_endpoint' => true,
+            'region' => $config['region'] ?? 'us-east-1',
+            'endpoint' => $config['endpoint'] ?? 'https://s3.us-east-1.cloudflare.com',
+            'use_path_style_endpoint' => $config['use_path_style_endpoint'] ?? true,
             'credentials' => [
-                'key' => config('services.cloudflare-r2.key'),
-                'secret' => config('services.cloudflare-r2.secret'),
+                'key' => $config['key'] ?? '',
+                'secret' => $config['secret'] ?? '',
             ],
         ]);
 
-        $this->bucket = config('services.cloudflare-r2.bucket', 'brand-assets');
-        $this->cdnDomain = rtrim(config('services.cloudflare-r2.cdn_domain', ''), '/');
+        $this->bucket = (string) ($config['bucket'] ?? 'brand-assets');
+        $this->cdnDomain = rtrim((string) ($config['url'] ?? ''), '/');
     }
 
     public function generatePresignedPutUrl(string $filename, string $contentType, int $size, int $brandId, int $teamId): array
@@ -47,7 +50,7 @@ class CloudflareR2StorageService
             'image/webp' => 5 * 1024 * 1024,
         ];
 
-        if (!in_array($contentType, $allowedMimeTypes, true)) {
+        if (! in_array($contentType, $allowedMimeTypes, true)) {
             throw new \InvalidArgumentException('Unsupported content type.');
         }
 
@@ -58,7 +61,7 @@ class CloudflareR2StorageService
         $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
         $allowedExtensions = ['svg', 'png', 'jpg', 'jpeg', 'webp'];
 
-        if (!in_array($extension, $allowedExtensions, true)) {
+        if (! in_array($extension, $allowedExtensions, true)) {
             throw new \InvalidArgumentException('Unsupported file extension.');
         }
 
@@ -69,7 +72,7 @@ class CloudflareR2StorageService
             'image/webp' => ['webp'],
         ];
 
-        if (!in_array($extension, $mimeExtensionMap[$contentType], true)) {
+        if (! in_array($extension, $mimeExtensionMap[$contentType], true)) {
             throw new \InvalidArgumentException('File extension does not match content type.');
         }
 

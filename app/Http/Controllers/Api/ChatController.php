@@ -167,7 +167,24 @@ class ChatController extends Controller
                 if (isset($data['palette'])) {
                     $discovery['palette'] = $data['palette'];
                 }
+
+                $isGeometric = (isset($data['step']) && $data['step'] === 'geometric_constructor')
+                    || (isset($data['action']) && in_array($data['action'], ['refine', 'accept'], true))
+                    || isset($data['svgPath']);
+
+                if ($isGeometric) {
+                    $discovery['geometric_constructor'] = [
+                        'svgPath' => $data['svgPath'] ?? $data['svg'] ?? '',
+                        'completedAt' => now()->toISOString(),
+                        'action' => $data['action'] ?? 'accept',
+                    ];
+                }
+
                 $brand->update(['discovery' => $discovery]);
+
+                if ($isGeometric && isset($data['action']) && $data['action'] === 'accept' && (!empty($data['svgPath']) || !empty($data['svg']))) {
+                    app(\App\Services\Brand\AssetCommitter::class)->commitLogoIcon($brand, $data);
+                }
             }
         } elseif (str_starts_with(trim($prompt), 'INTERVIEW_COMPLETE')) {
             $jsonStr = trim(substr(trim($prompt), strlen('INTERVIEW_COMPLETE')));

@@ -23,6 +23,14 @@ interface TypographyPairingSelectorProps extends DynamicComponentProps {
     filters?: string[];
 }
 
+const normalizePair = (p: any, idx: number) => ({
+    id: p?.id ?? p?.pairId ?? `pair-${idx}`,
+    heading: p?.heading ?? p?.headingFont ?? p?.display ?? p?.heading_name ?? 'Untitled heading',
+    body: p?.body ?? p?.bodyFont ?? p?.subhead ?? p?.body_name ?? 'Untitled body',
+    rationale: p?.rationale ?? p?.reason ?? p?.description ?? null,
+    previewUrl: p?.previewUrl ?? p?.preview ?? null,
+});
+
 export function TypographyPairingSelector({
     id,
     onAction,
@@ -32,6 +40,23 @@ export function TypographyPairingSelector({
     const [selectedPair, setSelectedPair] = useState<number | null>(null);
     const [headingSize, setHeadingSize] = useState([48]);
     const [bodySize, setBodySize] = useState([16]);
+
+    const normalizedPairs = (recommendedPairs ?? []).map((p, i) => normalizePair(p, i));
+
+    const handleContinue = (useTopRecommendation: boolean) => {
+        const indexToUse = useTopRecommendation ? 0 : selectedPair;
+        const pair = indexToUse !== null ? normalizedPairs[indexToUse] : null;
+
+        onAction?.('complete_step', {
+            step: 'typography_pairing',
+            pair,
+            selectedPairIndex: indexToUse,
+            headingSize: headingSize[0],
+            bodySize: bodySize[0],
+        });
+    };
+
+    const hasPairs = normalizedPairs.length > 0;
 
     return (
         <div className="p-4">
@@ -49,9 +74,9 @@ export function TypographyPairingSelector({
             </div>
 
             <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-                {recommendedPairs.map((pair, i) => (
+                {normalizedPairs.map((pair, i) => (
                     <Card
-                        key={i}
+                        key={pair.id}
                         className={`cursor-pointer transition hover:shadow-md ${selectedPair === i ? 'ring-nm-cyan ring-2' : ''}`}
                         onClick={() => setSelectedPair(i)}
                     >
@@ -60,7 +85,7 @@ export function TypographyPairingSelector({
                                 {pair.heading} + {pair.body}
                             </CardTitle>
                             <CardDescription className="text-xs">
-                                Recommended pairing
+                                {pair.rationale ?? 'Recommended pairing'}
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="p-4 pt-0">
@@ -108,7 +133,7 @@ export function TypographyPairingSelector({
                         </CardContent>
                     </Card>
                 ))}
-                {recommendedPairs.length === 0 && (
+                {!hasPairs && (
                     <div className="col-span-full py-8 text-center text-muted-foreground italic">
                         No typography recommendations yet. Ask the AI to suggest
                         pairings based on brand pillars.
@@ -116,23 +141,22 @@ export function TypographyPairingSelector({
                 )}
             </div>
 
-            {selectedPair !== null && (
-                <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+                {hasPairs && selectedPair === null && (
                     <Button
-                        onClick={() => {
-                            const pair = recommendedPairs[selectedPair];
-                            onAction?.('complete_step', {
-                                step: 'typography_pairing',
-                                pair,
-                                headingSize: headingSize[0],
-                                bodySize: bodySize[0],
-                            });
-                        }}
+                        variant="outline"
+                        onClick={() => handleContinue(true)}
                     >
-                        Save Pairing
+                        Use top recommendation
                     </Button>
-                </div>
-            )}
+                )}
+                <Button
+                    onClick={() => handleContinue(false)}
+                    disabled={!hasPairs || selectedPair === null}
+                >
+                    {selectedPair !== null ? 'Save Pairing' : 'Save Top Recommendation'}
+                </Button>
+            </div>
         </div>
     );
 }

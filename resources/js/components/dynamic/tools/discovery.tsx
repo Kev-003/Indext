@@ -1,5 +1,5 @@
 import { CheckCircle2, Circle } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,6 +28,12 @@ export function ClientInterviewWizard({ id, onAction, stage = 'business', prefil
     const [currentStage, setCurrentStage] = useState(stage);
     const [submitted, setSubmitted] = useState(completed ?? false);
     const [customToneInput, setCustomToneInput] = useState('');
+
+    useEffect(() => {
+        if (completed) {
+            setSubmitted(true);
+        }
+    }, [completed]);
 
     const stages: Array<{ key: typeof stage; label: string }> = [
         { key: 'business', label: 'Business' },

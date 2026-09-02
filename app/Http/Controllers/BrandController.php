@@ -31,7 +31,7 @@ class BrandController extends Controller
         if ($existingBrand) {
             return redirect()->route('workspace', [
                 'current_team' => $team->slug,
-                'brand' => $existingBrand->id,
+                'brand' => $existingBrand->slug,
             ]);
         }
 
@@ -121,7 +121,7 @@ class BrandController extends Controller
 
         return redirect()->route('workspace', [
             'current_team' => $team->slug,
-            'brand' => $brand->id,
+            'brand' => $brand->slug,
         ]);
     }
 

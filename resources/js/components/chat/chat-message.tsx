@@ -1,5 +1,5 @@
 import { COMPONENT_STEP_MAP } from '@/components/dynamic/registry';
-import { DynamicRenderer } from '@/components/dynamic/renderer';
+import { DynamicRenderer, resolveComponentName } from '@/components/dynamic/renderer';
 import { MessageContent } from '@/components/message-content';
 
 export interface ChatMessageProps {
@@ -13,7 +13,8 @@ export interface ChatMessageProps {
             arguments: Record<string, any>;
         }>;
         tool_results?: Array<{
-            tool_call_id: string;
+            tool_call_id?: string;
+            result_id?: string;
             result: Record<string, any>;
         }>;
         created_at: string;
@@ -21,6 +22,18 @@ export interface ChatMessageProps {
     onAction?: (action: string, data: Record<string, any>) => void;
     brandDiscovery?: Record<string, any> | null;
     brandStrategy?: Record<string, any> | null;
+}
+
+function hasContent(obj: any): boolean {
+    if (!obj) return false;
+    if (typeof obj !== 'object') return Boolean(obj);
+    return Object.values(obj).some((v) => {
+        if (v == null) return false;
+        if (typeof v === 'string') return v.trim().length > 0;
+        if (Array.isArray(v)) return v.length > 0;
+        if (typeof v === 'object') return Object.keys(v).length > 0;
+        return true;
+    });
 }
 
 export function ChatMessage({ message, onAction, brandDiscovery, brandStrategy }: ChatMessageProps) {
@@ -40,17 +53,16 @@ export function ChatMessage({ message, onAction, brandDiscovery, brandStrategy }
         return null;
     }
 
-    // Assistant message
-    const hasContent = content && content.trim();
+    const hasTextContent = content && content.trim();
     const hasToolCalls = tool_calls && tool_calls.length > 0;
 
-    if (!hasContent && !hasToolCalls) {
+    if (!hasTextContent && !hasToolCalls) {
         return null;
     }
 
     return (
         <div className="mb-4 flex flex-col gap-3">
-            {hasContent && (
+            {hasTextContent && (
                 <div className="max-w-[80%] rounded-[14px] border border-nm-grid bg-nm-paper px-4 py-3 text-nm-ink shadow-[0_1px_3px_rgba(0,0,0,0.04)] dark:bg-nm-paper-dark">
                     <MessageContent content={content || ''} onAction={onAction} />
                 </div>
@@ -66,12 +78,24 @@ export function ChatMessage({ message, onAction, brandDiscovery, brandStrategy }
                         }
 
                         const toolResult = tool_results?.find(
-                            (tr) => tr.tool_call_id === toolCall.id,
+                            (tr) => tr.result_id === toolCall.id || tr.tool_call_id === toolCall.id,
                         );
-                        const stepKey = COMPONENT_STEP_MAP[toolName];
-                        const discoveryData = stepKey && brandDiscovery ? brandDiscovery[stepKey] : null;
+                        const resolvedName = resolveComponentName(toolName);
+                        const stepKey =
+                            COMPONENT_STEP_MAP[resolvedName] ??
+                            COMPONENT_STEP_MAP[toolName];
+                        const discoveryData =
+                            stepKey &&
+                            brandDiscovery &&
+                            brandDiscovery[stepKey] &&
+                            hasContent(brandDiscovery[stepKey])
+                                ? brandDiscovery[stepKey]
+                                : null;
                         const strategyData =
-                            toolName === 'ClientInterviewWizard' && brandStrategy
+                            (resolvedName === 'ClientInterviewWizard' ||
+                                toolName === 'ClientInterviewWizard') &&
+                            brandStrategy?.interview &&
+                            hasContent(brandStrategy.interview)
                                 ? brandStrategy.interview
                                 : null;
                         const isCompleted = !!toolResult || !!discoveryData || !!strategyData;

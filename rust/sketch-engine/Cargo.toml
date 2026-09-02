@@ -1,0 +1,31 @@
+[package]
+name = "sketch-engine"
+version = "0.1.0"
+edition = "2021"
+description = "Rust-to-WASM sketch refinement engine for geometric path simplification and curve fitting"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+serde_json = "1"
+kurbo = { version = "0.11", features = ["serde"] }
+console_error_panic_hook = "0.1"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[features]
+default = []
+
+[profile.dev]
+opt-level = 2

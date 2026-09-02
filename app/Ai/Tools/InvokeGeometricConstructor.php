@@ -28,6 +28,7 @@ class InvokeGeometricConstructor implements Tool
   1 => 'Experienced',
 )),
             'primitives' => $schema->array()->items($schema->object([]))->description('Pre-loaded geometric primitives.'),
+            'conceptOptions' => $schema->array()->items($schema->object([]))->description('Concept skeletons and suggestions based on brand pillars.'),
         ];
     }
 }

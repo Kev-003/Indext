@@ -75,7 +75,7 @@ class BrandDeletionTest extends TestCase
             ->assertJson(['success' => true]);
 
         $this->assertSoftDeleted('brands', ['id' => $brand->id]);
-        $this->assertDatabaseMissing('conversations', ['id' => $conversation->id]);
+        $this->assertSoftDeleted('conversations', ['id' => $conversation->id]);
     }
 
     public function test_deleting_brand_cascades_to_assets_and_guidelines(): void
@@ -204,7 +204,7 @@ class BrandDeletionTest extends TestCase
             ->assertJson(['success' => true]);
 
         $this->assertSoftDeleted('brands', ['id' => $brand->id]);
-        $this->assertDatabaseMissing('conversations', [
+        $this->assertSoftDeleted('conversations', [
             'brand_id' => $brand->id,
             'agent_conversation_id' => null,
         ]);

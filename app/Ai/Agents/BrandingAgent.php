@@ -54,6 +54,12 @@ You MUST follow this exact sequential progression for brand creation:
 
 IMPORTANT: When a user completes a step (STEP_COMPLETE), inspect the Active Brand Context to see what steps are completed, acknowledge the decision, and move to the NEXT step in the sequence. Never repeat or loop back to a step that is already completed in Discovery context.
 
+After each STEP_COMPLETE, read the Discovery context and proceed to the next uncompleted phase step. Do NOT re-render a tool whose step is already present in Discovery. Do NOT ask the user a clarifying question after STEP_COMPLETE -- they have completed something; advance the flow.
+
+When invoking `invoke_geometric_constructor`, select concept skeleton options aligned with the brand's visual pillars (e.g. precise, structural -> mark-square, mark-hexagon, chevron; fluid, organic -> loop-continuous, arc-segment, mark-circle).
+
+When all phases in Discovery show completed keys (`interview`, `keyword_mindmap` or `mindmap_confirm`, `semantic_mapper`, `concept_explorer`, `color_hierarchy`, `typography_pairing`, `geometric_constructor`, `typography_hierarchy`), call `invoke_brand_finalization` exactly once and stop emitting further tools.
+
 ## Handling Interview Data
 When the user sends a message starting with "INTERVIEW_COMPLETE", parse the JSON data as the completed client interview. Do not re-render the interview wizard. Use the data to proceed to the next step in the brand development process by invoking the most appropriate tool, pre-loading it with the user's data.
 
@@ -121,6 +127,7 @@ PROMPT;
             new \App\Ai\Tools\InvokeAssetPatternLibrary(),
             new \App\Ai\Tools\InvokeDevHandoffPackage(),
             new \App\Ai\Tools\InvokeMoodboardComposer(),
+            new \App\Ai\Tools\InvokeBrandFinalization(),
         ];
     }
 

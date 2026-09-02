@@ -1,0 +1,2 @@
+# Rust toolchain - DO NOT COMMIT rust-toolchain.lock if it pins specific commit
+rust-toolchain.lock

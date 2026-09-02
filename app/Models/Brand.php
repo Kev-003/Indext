@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 /**
  * @property int $id
@@ -34,11 +35,59 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, BrandAsset> $assets
  * @property-read BrandGuideline|null $guideline
  */
-#[Fillable(['team_id', 'user_id', 'name', 'industry', 'execution_mode', 'strategy', 'discovery', 'status', 'sort_order'])]
+#[Fillable(['team_id', 'user_id', 'name', 'slug', 'industry', 'execution_mode', 'strategy', 'discovery', 'status', 'sort_order'])]
 class Brand extends Model
 {
     /** @use HasFactory<BrandFactory> */
     use HasFactory, SoftDeletes;
+
+    protected static function booted(): void
+    {
+        static::creating(function (Brand $brand) {
+            if (empty($brand->slug)) {
+                $brand->slug = static::generateUniqueSlug($brand->name);
+            }
+        });
+    }
+
+    public static function generateUniqueSlug(?string $name, ?int $excludeId = null): string
+    {
+        $base = Str::slug((string) $name);
+        if ($base === '') {
+            $base = 'brand';
+        }
+
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            $candidate = $base . '-' . Str::lower(Str::random(6));
+            $query = static::withTrashed()->where('slug', $candidate);
+            if ($excludeId !== null) {
+                $query->where('id', '!=', $excludeId);
+            }
+            if (! $query->exists()) {
+                return $candidate;
+            }
+        }
+
+        return $base . '-' . Str::lower(Str::random(8));
+    }
+
+    public function getRouteKeyName(): string
+    {
+        return 'slug';
+    }
+
+    public function resolveRouteBinding($value, $field = null)
+    {
+        $field = $field ?: $this->getRouteKeyName();
+
+        $instance = $this->resolveRouteBindingQuery($this, $value, $field)->first();
+
+        if (! $instance && ctype_digit((string) $value)) {
+            $instance = $this->newQuery()->where('id', (int) $value)->first();
+        }
+
+        return $instance;
+    }
 
     protected function casts(): array
     {

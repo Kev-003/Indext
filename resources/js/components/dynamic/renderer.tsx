@@ -18,9 +18,10 @@ interface DynamicRendererProps {
 // A small number of tools also differ beyond just that prefix — list those here.
 const COMPONENT_NAME_ALIASES: Record<string, string> = {
     MindMap: 'MindMapCanvas',
+    BrandFinalization: 'BrandGuidelineDocument',
 };
 
-function resolveComponentName(name: string): string {
+export function resolveComponentName(name: string): string {
     if (!name) {
 return '';
 }

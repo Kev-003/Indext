@@ -1,29 +1,35 @@
-/.phpunit.cache
-/bootstrap/ssr
+# Laravel
+/vendor
 /node_modules
 /public/build
-/public/fonts-manifest.dev.json
 /public/hot
 /public/storage
 /storage/*.key
 /storage/pail
-/resources/js/actions
-/resources/js/routes
-/resources/js/wayfinder
-/vendor
-.DS_Store
 .env
 .env.backup
 .env.production
-.phpactor.json
 .phpunit.result.cache
 Homestead.json
 Homestead.yaml
+auth.json
 npm-debug.log
 yarn-error.log
-/auth.json
+/public/fonts-manifest*.json
+
+# Wayfinder-generated (regenerated automatically by the vite plugin on build/dev)
+/resources/js/actions/
+/resources/js/routes/
+/resources/js/wayfinder/
+
+# Rust / WASM sketch engine
+/rust/**/target/
+/resources/js/wasm/
+
+# Editors
 /.fleet
 /.idea
 /.nova
 /.vscode
 /.zed
+/.sanity-test-file.tmp

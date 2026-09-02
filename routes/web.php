@@ -31,4 +31,5 @@ Route::prefix('api/brands')->middleware(['auth'])->group(function () {
     Route::patch('/{brand}/sort', [\App\Http\Controllers\BrandController::class, 'updateSort'])->name('brands.sort');
     Route::patch('/sort', [\App\Http\Controllers\BrandController::class, 'bulkSort'])->name('brands.sort.bulk');
     Route::post('/{brand}/chat/message', [\App\Http\Controllers\Api\ChatController::class, 'message'])->name('brands.chat.message');
+    Route::post('/{brand}/finalize', [\App\Http\Controllers\Api\BrandFinalizationController::class, 'finalize'])->name('brands.finalize');
 });

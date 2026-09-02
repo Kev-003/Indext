@@ -21,30 +21,39 @@ class WorkspaceController extends Controller
         $team = \App\Models\Team::where('slug', $teamSlug)->firstOrFail();
 
         if ($brandId) {
-            $brand = Brand::where('id', $brandId)
-                ->where('team_id', $team->id)
-                ->first();
+            $brand = $this->resolveBrand($brandId, $team->id);
 
             if ($brand) {
-                $conversation = $brand->conversations()->where('status', 'active')->latest('updated_at')->first();
+                $conversation = $brand->conversations()
+                    ->where('status', 'active')
+                    ->latest('updated_at')
+                    ->first();
 
                 if ($conversation && $conversation->agent_conversation_id) {
                     $records = \Illuminate\Support\Facades\DB::connection()->table('agent_conversation_messages')
                         ->where('conversation_id', $conversation->agent_conversation_id)
-                        ->orderByDesc('created_at')
-                        ->limit(50)
-                        ->get()
-                        ->reverse()
-                        ->values();
+                        ->orderBy('created_at')
+                        ->orderBy('id')
+                        ->get();
 
-                    $messages = $records->map(fn ($msg) => [
-                        'id' => $msg->id,
-                        'role' => $msg->role,
-                        'content' => $msg->content,
-                        'tool_calls' => json_decode($msg->tool_calls, true) ?: [],
-                        'tool_results' => json_decode($msg->tool_results, true) ?: [],
-                        'created_at' => $msg->created_at,
-                    ]);
+                    $messages = $records->map(function ($msg) {
+                        $toolResults = json_decode($msg->tool_results, true) ?: [];
+                        $toolResults = array_map(function ($tr) {
+                            if (is_array($tr) && isset($tr['result_id']) && ! isset($tr['tool_call_id'])) {
+                                $tr['tool_call_id'] = $tr['result_id'];
+                            }
+                            return $tr;
+                        }, $toolResults);
+
+                        return [
+                            'id' => $msg->id,
+                            'role' => $msg->role,
+                            'content' => $msg->content,
+                            'tool_calls' => json_decode($msg->tool_calls, true) ?: [],
+                            'tool_results' => $toolResults,
+                            'created_at' => $msg->created_at,
+                        ];
+                    });
                 }
             }
         }
@@ -55,6 +64,7 @@ class WorkspaceController extends Controller
             ->get()
             ->map(fn ($b) => [
                 'id' => $b->id,
+                'slug' => $b->slug,
                 'name' => $b->name,
                 'industry' => $b->industry,
                 'status' => $b->status,
@@ -67,15 +77,15 @@ class WorkspaceController extends Controller
         if ($conversation && $messages->isNotEmpty()) {
             $lastMessage = $messages->last();
             $hasAssistantReply = $messages->contains(function ($msg) {
-    if ($msg['role'] !== 'assistant') {
-        return false;
-    }
+                if ($msg['role'] !== 'assistant') {
+                    return false;
+                }
 
-    $hasContent = trim($msg['content'] ?? '') !== '';
-    $hasToolCalls = !empty($msg['tool_calls']);
+                $hasContent = trim($msg['content'] ?? '') !== '';
+                $hasToolCalls = !empty($msg['tool_calls']);
 
-    return $hasContent || $hasToolCalls;
-    });
+                return $hasContent || $hasToolCalls;
+            });
 
             if (! $hasAssistantReply
                 && $lastMessage['role'] === 'user'
@@ -90,14 +100,18 @@ class WorkspaceController extends Controller
         return Inertia::render('workspace/index', [
             'brand' => $brand ? [
                 'id' => $brand->id,
+                'slug' => $brand->slug,
                 'name' => $brand->name,
                 'industry' => $brand->industry,
                 'execution_mode' => $brand->execution_mode,
                 'status' => $brand->status,
                 'discovery' => $brand->discovery ?? [],
+                'strategy' => $brand->strategy ?? [],
+                'guideline' => $brand->guideline,
             ] : null,
             'conversation' => $conversation ? [
                 'id' => $conversation->id,
+                'slug' => $conversation->slug,
                 'title' => $conversation->title,
                 'status' => $conversation->status,
             ] : null,
@@ -112,5 +126,17 @@ class WorkspaceController extends Controller
                 ['name' => 'GuidelinePreview', 'description' => 'Surfaces the brand guideline preview.'],
             ],
         ]);
+    }
+
+    private function resolveBrand(string|int $identifier, int $teamId): ?Brand
+    {
+        $query = Brand::where('team_id', $teamId);
+
+        if (is_numeric($identifier)) {
+            return $query->where('id', (int) $identifier)->first()
+                ?? $query->where('slug', $identifier)->first();
+        }
+
+        return $query->where('slug', $identifier)->first();
     }
 }

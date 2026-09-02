@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\BrandFinalizationController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\StorageController;
 use App\Http\Controllers\BrandController;
@@ -22,6 +23,12 @@ Route::middleware(['web', 'auth:web'])->get('/debug-auth', function (\Illuminate
         'has_session_cookie' => $request->hasCookie('laravel-session'),
     ]);
 });
+
+Route::middleware(['web', 'auth:web'])
+    ->prefix('brands/{brand}')
+    ->group(function () {
+        Route::post('/finalize', [BrandFinalizationController::class, 'finalize'])->name('api.brands.finalize');
+    });
 
 Route::middleware(['web', 'auth:web', 'ai.guardrail'])
     ->prefix('brands/{brand}')

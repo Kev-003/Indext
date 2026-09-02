@@ -9,6 +9,7 @@ import type { DashboardInvitation } from '@/types';
 
 interface Brand {
     id: number;
+    slug?: string;
     name: string;
     industry?: string;
     status: string;
@@ -108,7 +109,7 @@ return;
                             {recentBrands.map((brand) => {
                                 const workspaceUrl = currentTeam
                                     ? workspace(currentTeam.slug, {
-                                          query: { brand: brand.id },
+                                          query: { brand: brand.slug ?? brand.id },
                                       })
                                     : '#';
 

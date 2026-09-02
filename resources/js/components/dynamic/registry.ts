@@ -151,4 +151,5 @@ export const COMPONENT_STEP_MAP: Record<string, string | undefined> = {
     ColorSystemDocument: 'color_system',
     AssetPatternLibrary: 'asset_pattern',
     TypographyHierarchyDoc: 'typography_hierarchy',
+    GeometricConstructor: 'geometric_constructor',
 };
