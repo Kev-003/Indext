@@ -43,7 +43,7 @@ export function SpecimenSheet({
     return (
         <div
             className={cn(
-                'relative w-full max-w-5xl rounded-md border bg-nm-paper text-nm-ink',
+                'bg-nm-paper text-nm-ink relative w-full max-w-5xl rounded-md border',
                 'motion-reduce:transition-none',
                 className,
             )}
@@ -66,33 +66,22 @@ export function SpecimenSheet({
             />
 
             {completed && (
-                <div className="border-b border-nm-grid px-5 py-2.5">
+                <div className="border-nm-grid border-b px-5 py-3">
                     <div className="flex items-center gap-2">
-                        <span
-                            className="flex h-4 w-4 items-center justify-center rounded-full text-xs"
-                            style={{
-                                backgroundColor: color,
-                                color: '#ffffff',
-                            }}
-                        >
-                            <Check size={12} />
-                        </span>
-                        <span className="text-xs font-medium">
-                            {completionLabel || 'Step completed'}
-                        </span>
+                        <span className="text-xs font-medium"></span>
                     </div>
                 </div>
             )}
 
             {(title || stageLabel) && (
-                <div className="border-b border-nm-grid px-5 py-3">
+                <div className="border-nm-grid border-b px-5 py-3">
                     {stageLabel && (
-                        <span className="text-[10px] font-medium uppercase tracking-wider text-nm-steel">
+                        <span className="text-nm-steel text-[10px] font-medium tracking-wider uppercase">
                             {stageLabel}
                         </span>
                     )}
                     {title && (
-                        <h3 className="font-display mt-0.5 text-lg font-semibold text-nm-ink">
+                        <h3 className="text-nm-ink mt-0.5 font-display text-lg font-semibold">
                             {title}
                         </h3>
                     )}

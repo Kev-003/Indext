@@ -18,22 +18,39 @@ interface ClientInterviewWizardProps extends DynamicComponentProps {
     result?: Record<string, any>;
 }
 
-export function ClientInterviewWizard({ id, onAction, stage = 'business', prefilled = {}, completed, result }: ClientInterviewWizardProps) {
+export function ClientInterviewWizard({
+    id,
+    onAction,
+    stage = 'business',
+    prefilled = {},
+    completed,
+    result,
+}: ClientInterviewWizardProps) {
     const [formData, setFormData] = useState({
-        businessName: prefilled.businessName || '',
-        mission: prefilled.mission || '',
-        audience: prefilled.audience || '',
-        tone: prefilled.tone || 'professional',
+        businessName: (result?.businessName ?? prefilled?.businessName) || '',
+        mission: (result?.mission ?? prefilled?.mission) || '',
+        audience: (result?.audience ?? prefilled?.audience) || '',
+        tone: result?.tone ?? prefilled?.tone ?? 'professional',
     });
     const [currentStage, setCurrentStage] = useState(stage);
-    const [submitted, setSubmitted] = useState(completed ?? false);
+    const [submitted, setSubmitted] = useState(false);
+    const [editing, setEditing] = useState(false);
     const [customToneInput, setCustomToneInput] = useState('');
 
     useEffect(() => {
-        if (completed) {
+        const interview = (result && (result.interview ?? result)) || {};
+
+        const allFilled =
+            Boolean(interview.businessName?.trim()) &&
+            Boolean(interview.mission?.trim()) &&
+            Boolean(interview.audience?.trim()) &&
+            Boolean(interview.tone?.trim());
+
+        if (completed && allFilled) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setSubmitted(true);
         }
-    }, [completed]);
+    }, [completed, result]);
 
     const stages: Array<{ key: typeof stage; label: string }> = [
         { key: 'business', label: 'Business' },
@@ -61,10 +78,26 @@ export function ClientInterviewWizard({ id, onAction, stage = 'business', prefil
     const isAllComplete = incompleteStages.length === 0;
 
     const toneOptions = [
-        'professional', 'friendly', 'sophisticated', 'playful', 'quirky',
-        'bold', 'confident', 'minimal', 'modern', 'classic', 'rustic',
-        'luxury', 'accessible', 'serious', 'casual', 'vintage',
-        'contemporary', 'edgy', 'authentic', 'refined',
+        'professional',
+        'friendly',
+        'sophisticated',
+        'playful',
+        'quirky',
+        'bold',
+        'confident',
+        'minimal',
+        'modern',
+        'classic',
+        'rustic',
+        'luxury',
+        'accessible',
+        'serious',
+        'casual',
+        'vintage',
+        'contemporary',
+        'edgy',
+        'authentic',
+        'refined',
     ];
 
     const selectedTones = formData.tone
@@ -83,54 +116,77 @@ export function ClientInterviewWizard({ id, onAction, stage = 'business', prefil
         const custom = customToneInput.trim();
 
         if (custom && !selectedTones.includes(custom)) {
-            setFormData({ ...formData, tone: [...selectedTones, custom].join(', ') });
+            setFormData({
+                ...formData,
+                tone: [...selectedTones, custom].join(', '),
+            });
         }
 
         setCustomToneInput('');
     };
 
     const removeTone = (t: string) => {
-        setFormData({ ...formData, tone: selectedTones.filter((x: string) => x !== t).join(', ') });
+        setFormData({
+            ...formData,
+            tone: selectedTones.filter((x: string) => x !== t).join(', '),
+        });
     };
 
-    if (submitted) {
+    if (submitted && !editing) {
         return (
-        <div className="p-4">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-display font-semibold text-nm-cyan">
-                    Interview Complete
-                </h3>
-                <span className="text-xs font-mono bg-nm-steel/10 text-nm-steel px-2 py-1 rounded">
-                    Submitted
-                </span>
+            <div className="p-4">
+                <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-nm-cyan font-display text-lg font-semibold">
+                        Interview Complete
+                    </h3>
+                    <span className="bg-nm-steel/10 text-nm-steel rounded px-2 py-1 font-mono text-xs">
+                        Submitted
+                    </span>
                 </div>
 
                 <div className="mt-4 space-y-3 text-sm">
                     <div>
-                        <span className="font-medium text-muted-foreground dark:text-muted-foreground">Business:</span>
+                        <span className="font-medium text-muted-foreground dark:text-muted-foreground">
+                            Business:
+                        </span>
                         <span className="ml-2 text-foreground dark:text-foreground">
                             {formData.businessName}
                         </span>
                     </div>
                     <div>
-                        <span className="font-medium text-muted-foreground dark:text-muted-foreground">Mission:</span>
-                        <p className="ml-2 mt-1 text-foreground dark:text-foreground">
+                        <span className="font-medium text-muted-foreground dark:text-muted-foreground">
+                            Mission:
+                        </span>
+                        <p className="mt-1 ml-2 text-foreground dark:text-foreground">
                             {formData.mission}
                         </p>
                     </div>
                     <div>
-                        <span className="font-medium text-muted-foreground dark:text-muted-foreground">Audience:</span>
-                        <p className="ml-2 mt-1 text-foreground dark:text-foreground">
+                        <span className="font-medium text-muted-foreground dark:text-muted-foreground">
+                            Audience:
+                        </span>
+                        <p className="mt-1 ml-2 text-foreground dark:text-foreground">
                             {formData.audience}
                         </p>
                     </div>
                     <div>
-                        <span className="font-medium text-muted-foreground dark:text-muted-foreground">Tone:</span>
+                        <span className="font-medium text-muted-foreground dark:text-muted-foreground">
+                            Tone:
+                        </span>
                         <span className="ml-2 text-foreground dark:text-foreground">
                             {formData.tone}
                         </span>
                     </div>
                 </div>
+
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4"
+                    onClick={() => setEditing(true)}
+                >
+                    Edit Answers
+                </Button>
 
                 <p className="mt-4 text-xs text-muted-foreground">
                     Your brand director is processing your interview...
@@ -141,29 +197,35 @@ export function ClientInterviewWizard({ id, onAction, stage = 'business', prefil
 
     return (
         <div className="p-4">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-display font-semibold text-nm-cyan dark:text-nm-cyan">
+            <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-nm-cyan dark:text-nm-cyan font-display text-lg font-semibold">
                     Client Interview
                 </h3>
-                <span className="text-xs font-mono bg-nm-steel/10 text-nm-steel px-2 py-1 rounded">
+                <span className="bg-nm-steel/10 text-nm-steel rounded px-2 py-1 font-mono text-xs">
                     Stage: {stage}
                 </span>
             </div>
 
-            <div className="flex gap-2 mb-6">
+            <div className="mb-6 flex gap-2">
                 {stages.map((s) => {
                     const complete = isStageComplete(s.key);
 
                     return (
                         <Button
                             key={s.key}
-                            variant={currentStage === s.key ? 'default' : 'outline'}
+                            variant={
+                                currentStage === s.key ? 'default' : 'outline'
+                            }
                             size="sm"
                             onClick={() => setCurrentStage(s.key)}
                         >
                             {s.label}
-                            {complete && <CheckCircle2 className="ml-1 h-3 w-3" />}
-                            {!complete && <Circle className="ml-1 h-3 w-3 opacity-30" />}
+                            {complete && (
+                                <CheckCircle2 className="ml-1 h-3 w-3" />
+                            )}
+                            {!complete && (
+                                <Circle className="ml-1 h-3 w-3 opacity-30" />
+                            )}
                         </Button>
                     );
                 })}
@@ -172,11 +234,18 @@ export function ClientInterviewWizard({ id, onAction, stage = 'business', prefil
             <div className="space-y-4">
                 {currentStage === 'business' && (
                     <div className="space-y-2">
-                        <Label htmlFor={`${id}-business`}>Business Name / Industry</Label>
+                        <Label htmlFor={`${id}-business`}>
+                            Business Name / Industry
+                        </Label>
                         <Input
                             id={`${id}-business`}
                             value={formData.businessName}
-                            onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
+                            onChange={(e) =>
+                                setFormData({
+                                    ...formData,
+                                    businessName: e.target.value,
+                                })
+                            }
                             placeholder="e.g., Northline Coffee"
                         />
                     </div>
@@ -188,7 +257,12 @@ export function ClientInterviewWizard({ id, onAction, stage = 'business', prefil
                         <Textarea
                             id={`${id}-mission`}
                             value={formData.mission}
-                            onChange={(e) => setFormData({ ...formData, mission: e.target.value })}
+                            onChange={(e) =>
+                                setFormData({
+                                    ...formData,
+                                    mission: e.target.value,
+                                })
+                            }
                             placeholder="What is the brand's core purpose?"
                             className="min-h-[100px]"
                         />
@@ -197,11 +271,18 @@ export function ClientInterviewWizard({ id, onAction, stage = 'business', prefil
 
                 {currentStage === 'audience' && (
                     <div className="space-y-2">
-                        <Label htmlFor={`${id}-audience`}>Target Audience</Label>
+                        <Label htmlFor={`${id}-audience`}>
+                            Target Audience
+                        </Label>
                         <Textarea
                             id={`${id}-audience`}
                             value={formData.audience}
-                            onChange={(e) => setFormData({ ...formData, audience: e.target.value })}
+                            onChange={(e) =>
+                                setFormData({
+                                    ...formData,
+                                    audience: e.target.value,
+                                })
+                            }
                             placeholder="Who is the ideal customer?"
                             className="min-h-[100px]"
                         />
@@ -210,7 +291,9 @@ export function ClientInterviewWizard({ id, onAction, stage = 'business', prefil
 
                 {currentStage === 'tone' && (
                     <div className="space-y-4">
-                        <Label>Tone of Voice (select multiple or type custom)</Label>
+                        <Label>
+                            Tone of Voice (select multiple or type custom)
+                        </Label>
                         <div className="flex flex-wrap gap-2">
                             {toneOptions.map((t) => {
                                 const selected = selectedTones.includes(t);
@@ -218,7 +301,9 @@ export function ClientInterviewWizard({ id, onAction, stage = 'business', prefil
                                 return (
                                     <Button
                                         key={t}
-                                        variant={selected ? 'default' : 'outline'}
+                                        variant={
+                                            selected ? 'default' : 'outline'
+                                        }
                                         size="sm"
                                         onClick={() => toggleTone(t)}
                                     >
@@ -230,20 +315,22 @@ export function ClientInterviewWizard({ id, onAction, stage = 'business', prefil
                         <Input
                             value={customToneInput}
                             onChange={(e) => setCustomToneInput(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && addCustomTone()}
+                            onKeyDown={(e) =>
+                                e.key === 'Enter' && addCustomTone()
+                            }
                             placeholder="Add custom tone (press Enter)"
                         />
                         {selectedTones.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
+                            <div className="mt-2 flex flex-wrap gap-1">
                                 {selectedTones.map((t: string, i: number) => (
                                     <span
                                         key={i}
-                                        className="text-xs px-2 py-1 bg-nm-cyan/10 text-nm-cyan rounded"
+                                        className="bg-nm-cyan/10 text-nm-cyan rounded px-2 py-1 text-xs"
                                     >
                                         {t}
                                         <button
                                             onClick={() => removeTone(t)}
-                                            className="ml-1 hover:text-nm-cyan"
+                                            className="hover:text-nm-cyan ml-1"
                                         >
                                             ×
                                         </button>
@@ -256,23 +343,46 @@ export function ClientInterviewWizard({ id, onAction, stage = 'business', prefil
 
                 <div className="flex flex-col gap-2 pt-4">
                     {!isAllComplete && (
-                        <div className="text-xs text-nm-amber dark:text-nm-amber">
+                        <div className="text-nm-amber dark:text-nm-amber text-xs">
                             Complete all sections to continue:{' '}
-                            {incompleteStages.map((s) => stages.find((st) => st.key === s.key)?.label).join(', ')}
+                            {incompleteStages
+                                .map(
+                                    (s) =>
+                                        stages.find((st) => st.key === s.key)
+                                            ?.label,
+                                )
+                                .join(', ')}
                         </div>
                     )}
-                    <div className="flex justify-between">
-                        <Button variant="outline" disabled>Back</Button>
-                        <Button
-                            onClick={() => {
-                                setSubmitted(true);
-                                onAction?.('submit_interview', formData);
-                            }}
-                            disabled={!isAllComplete}
-                        >
-                            Continue
-                        </Button>
-                    </div>
+                     <div className="flex justify-between">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    if (submitted && editing) {
+                                        setEditing(false);
+                                    }
+                                }}
+                                disabled={!submitted || !editing}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={() => {
+                                    if (submitted && editing) {
+                                        onAction?.('submit_interview', formData);
+                                    } else {
+                                        setSubmitted(true);
+                                        onAction?.('submit_interview', formData);
+                                    }
+                                }}
+                                disabled={!isAllComplete || (submitted && !editing)}
+                            >
+                                {submitted && editing
+                                    ? 'Update Interview'
+                                    : 'Submit Interview'}
+                            </Button>
+                        </div>
                 </div>
             </div>
         </div>
@@ -288,7 +398,12 @@ interface VisualPillarExtractorProps extends DynamicComponentProps {
     brandId?: number;
 }
 
-export function VisualPillarExtractor({ id, onAction, suggestedPillars = [], brandId }: VisualPillarExtractorProps) {
+export function VisualPillarExtractor({
+    id,
+    onAction,
+    suggestedPillars = [],
+    brandId,
+}: VisualPillarExtractorProps) {
     const [pillars, setPillars] = useState<string[]>(suggestedPillars);
     const [newPillar, setNewPillar] = useState('');
 
@@ -305,8 +420,8 @@ export function VisualPillarExtractor({ id, onAction, suggestedPillars = [], bra
 
     return (
         <div className="p-4">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-display font-semibold text-nm-cyan dark:text-nm-cyan">
+            <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-nm-cyan dark:text-nm-cyan font-display text-lg font-semibold">
                     Visual Pillars
                 </h3>
                 <span className="text-xs text-muted-foreground">
@@ -314,14 +429,20 @@ export function VisualPillarExtractor({ id, onAction, suggestedPillars = [], bra
                 </span>
             </div>
 
-            <p className="text-sm text-muted-foreground mb-4">
-                These pillars will guide all visual decisions. Drag to reorder, or edit directly.
+            <p className="mb-4 text-sm text-muted-foreground">
+                These pillars will guide all visual decisions. Drag to reorder,
+                or edit directly.
             </p>
 
-            <div className="space-y-2 mb-4">
+            <div className="mb-4 space-y-2">
                 {pillars.map((pillar, i) => (
-                    <div key={i} className="flex items-center gap-2 p-2 border border-nm-grid rounded bg-nm-paper dark:bg-nm-paper-dark">
-                        <span className="text-xs font-mono text-nm-steel">{i + 1}</span>
+                    <div
+                        key={i}
+                        className="border-nm-grid bg-nm-paper dark:bg-nm-paper-dark flex items-center gap-2 rounded border p-2"
+                    >
+                        <span className="text-nm-steel font-mono text-xs">
+                            {i + 1}
+                        </span>
                         <Input
                             value={pillar}
                             onChange={(e) => {
@@ -334,7 +455,7 @@ export function VisualPillarExtractor({ id, onAction, suggestedPillars = [], bra
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-nm-magenta"
+                            className="text-nm-magenta h-8 w-8"
                             onClick={() => removePillar(i)}
                         >
                             ×
@@ -343,7 +464,7 @@ export function VisualPillarExtractor({ id, onAction, suggestedPillars = [], bra
                 ))}
             </div>
 
-            <div className="flex gap-2 mb-4">
+            <div className="mb-4 flex gap-2">
                 <Input
                     value={newPillar}
                     onChange={(e) => setNewPillar(e.target.value)}
@@ -356,11 +477,17 @@ export function VisualPillarExtractor({ id, onAction, suggestedPillars = [], bra
             </div>
 
             <div className="flex justify-end">
-                <Button onClick={() => onAction?.('complete_step', {
-                    step: 'visual_pillars',
-                    brandId,
-                    pillars,
-                })}>Confirm Pillars</Button>
+                <Button
+                    onClick={() =>
+                        onAction?.('complete_step', {
+                            step: 'visual_pillars',
+                            brandId,
+                            pillars,
+                        })
+                    }
+                >
+                    Confirm Pillars
+                </Button>
             </div>
         </div>
     );
@@ -374,7 +501,12 @@ interface BrandStrategyOverviewProps extends DynamicComponentProps {
     readonly?: boolean;
 }
 
-export function BrandStrategyOverview({ id, onAction, brandId, readonly = false }: BrandStrategyOverviewProps) {
+export function BrandStrategyOverview({
+    id,
+    onAction,
+    brandId,
+    readonly = false,
+}: BrandStrategyOverviewProps) {
     const [strategy, setStrategy] = useState({
         mission: 'Empower creative builders.',
         values: ['integrity', 'innovation', 'craftsmanship'],
@@ -383,11 +515,11 @@ export function BrandStrategyOverview({ id, onAction, brandId, readonly = false 
 
     return (
         <div className="p-4">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-display font-semibold text-nm-cyan dark:text-nm-cyan">
+            <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-nm-cyan dark:text-nm-cyan font-display text-lg font-semibold">
                     Brand Strategy Overview
                 </h3>
-                <span className="text-xs font-mono bg-nm-steel/10 text-nm-steel px-2 py-1 rounded">
+                <span className="bg-nm-steel/10 text-nm-steel rounded px-2 py-1 font-mono text-xs">
                     {readonly ? 'Read Only' : 'Editable'}
                 </span>
             </div>
@@ -397,7 +529,12 @@ export function BrandStrategyOverview({ id, onAction, brandId, readonly = false 
                     <Label>Mission</Label>
                     <Textarea
                         value={strategy.mission}
-                        onChange={(e) => setStrategy({ ...strategy, mission: e.target.value })}
+                        onChange={(e) =>
+                            setStrategy({
+                                ...strategy,
+                                mission: e.target.value,
+                            })
+                        }
                         disabled={readonly}
                         className="min-h-[80px]"
                     />
@@ -407,26 +544,36 @@ export function BrandStrategyOverview({ id, onAction, brandId, readonly = false 
                     <Label>Values</Label>
                     <div className="flex flex-wrap gap-2">
                         {strategy.values.map((val, i) => (
-                            <div key={i} className="flex items-center gap-1 px-3 py-1 border border-nm-grid rounded-full bg-nm-paper dark:bg-nm-paper-dark">
+                            <div
+                                key={i}
+                                className="border-nm-grid bg-nm-paper dark:bg-nm-paper-dark flex items-center gap-1 rounded-full border px-3 py-1"
+                            >
                                 <Input
                                     value={val}
                                     onChange={(e) => {
                                         const updated = [...strategy.values];
                                         updated[i] = e.target.value;
-                                        setStrategy({ ...strategy, values: updated });
+                                        setStrategy({
+                                            ...strategy,
+                                            values: updated,
+                                        });
                                     }}
-                                    className="w-32 h-8 text-sm"
+                                    className="h-8 w-32 text-sm"
                                     disabled={readonly}
                                 />
                                 {!readonly && (
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-6 w-6 text-nm-magenta"
-                                        onClick={() => setStrategy({
-                                            ...strategy,
-                                            values: strategy.values.filter((_, idx) => idx !== i),
-                                        })}
+                                        className="text-nm-magenta h-6 w-6"
+                                        onClick={() =>
+                                            setStrategy({
+                                                ...strategy,
+                                                values: strategy.values.filter(
+                                                    (_, idx) => idx !== i,
+                                                ),
+                                            })
+                                        }
                                     >
                                         ×
                                     </Button>
@@ -437,7 +584,12 @@ export function BrandStrategyOverview({ id, onAction, brandId, readonly = false 
                             <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => setStrategy({ ...strategy, values: [...strategy.values, ''] })}
+                                onClick={() =>
+                                    setStrategy({
+                                        ...strategy,
+                                        values: [...strategy.values, ''],
+                                    })
+                                }
                             >
                                 + Value
                             </Button>
@@ -449,7 +601,10 @@ export function BrandStrategyOverview({ id, onAction, brandId, readonly = false 
                     <Label>Visual Pillars</Label>
                     <div className="flex flex-wrap gap-2">
                         {strategy.visualPillars.map((pillar, i) => (
-                            <span key={i} className="px-3 py-1 bg-nm-cyan/10 dark:bg-nm-paper-dark border border-nm-cyan/30 rounded-full text-sm text-nm-cyan">
+                            <span
+                                key={i}
+                                className="bg-nm-cyan/10 dark:bg-nm-paper-dark border-nm-cyan/30 text-nm-cyan rounded-full border px-3 py-1 text-sm"
+                            >
                                 {pillar}
                             </span>
                         ))}
@@ -457,12 +612,18 @@ export function BrandStrategyOverview({ id, onAction, brandId, readonly = false 
                 </div>
 
                 {!readonly && (
-                    <div className="flex justify-end pt-4 border-t">
-                        <Button onClick={() => onAction?.('complete_step', {
-                            step: 'brand_strategy',
-                            brandId,
-                            strategy,
-                        })}>Save Strategy</Button>
+                    <div className="flex justify-end border-t pt-4">
+                        <Button
+                            onClick={() =>
+                                onAction?.('complete_step', {
+                                    step: 'brand_strategy',
+                                    brandId,
+                                    strategy,
+                                })
+                            }
+                        >
+                            Save Strategy
+                        </Button>
                     </div>
                 )}
             </div>
